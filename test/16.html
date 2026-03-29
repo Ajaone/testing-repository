@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h2>Internal Scheme Probe</h2>
+<button onclick="run()">Run</button>
+
+<script>
+function run() {
+  const schemes = [
+    "arc://", "arc-internal://", "arcmobile://"
+  ];
+
+  schemes.forEach((s,i) => {
+    setTimeout(() => {
+      const a = document.createElement("a");
+      a.href = s + "test";
+      a.target = "_blank";
+      a.click();
+    }, i * 300);
+  });
+}
+</script>
+
+</body>
+</html>
