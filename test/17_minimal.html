@@ -1,13 +1,22 @@
 <!doctype html>
 <html>
 <head>
-<style></style>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-Please wait...
+
+<h2>Redirect with Delayed Response</h2>
+
+<button onclick="run()">Run</button>
+
 <script>
-window.location = 'https://ajaone.github.io/testing-repository/test/17.php' + Date.now();
+const SERVER = "https://ajaone.github.io/testing-repository/test/17.php";
+
+function run() {
+  const delay = 10; // seconds
+  window.location = SERVER + "?s=" + delay;
+}
 </script>
+
 </body>
 </html>
