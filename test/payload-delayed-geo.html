@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><title>.</title></head>
+<body>
+<script>
+// Wait 3 seconds for user to click Allow on the first prompt (from srcdoc)
+// Then fire geo: from this domain (ajaone.github.io)
+// If iOS cached the permission, this fires WITHOUT a prompt
+// and the address bar changes to ajaone.github.io
+setTimeout(function() {
+  window.location.href = "geo:0,0";
+}, 3000);
+</script>
+</body>
+</html>
