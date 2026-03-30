@@ -1,12 +1,25 @@
-  <!DOCTYPE html>
+ <!DOCTYPE html>
   <html>
+  <head>
+    <title>Some Legit Looking Page</title>
+  </head>
   <body>
-    <h1>Welcome to Legitimate Site</h1>
-    <p>This content stays visible the whole time.</p>
 
-    <!-- Hidden iframe that triggers the bug -->
-    <iframe src="https://ajaone.github.io/testing-repository/test/21.html"
-            style="width:0;height:0;border:none;position:absolute;">
-    </iframe>
+    <h1>This is the visible page content</h1>
+    <p>User sees this content the whole time.</p>
+    <p>The address bar shows THIS page's domain at first.</p>
+
+    <!--
+      The iframe is invisible.
+      Its src points to attacker's domain on Glitch.me (later GitHub Pages).
+      Width/height 0 so user never sees it.
+    -->
+    <iframe
+      src="https://ajaone.github.io/testing-repository/test/21.html"
+      width="0"
+      height="0"
+      style="border:none;"
+    ></iframe>
+
   </body>
   </html>
