@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head><title>.</title></head>
+<body>
+<!--
+  Goal: find a URI scheme that changes the address bar
+  WITHOUT showing a confirmation prompt.
+
+  Test each one individually by uncommenting.
+  Some schemes are handled silently by iOS/Arc.
+-->
+<script>
+// Uncomment ONE at a time, push to GitHub, test in Arc iOS.
+// Look for: address bar changes WITHOUT any prompt appearing.
+
+// --- Group A: schemes that might not prompt ---
+//window.location.href = "mailto:";                    // empty mailto might not prompt
+//window.location.href = "mailto:?subject=test";       // mailto with params
+//window.location.href = "#";                          // fragment only
+//window.location.href = "about:blank";                // about:blank
+//window.location.href = "about:srcdoc";               // about:srcdoc
+
+// --- Group B: apple-specific schemes ---
+//window.location.href = "x-apple-data-detectors://";
+//window.location.href = "apple-magnifier://";
+//window.location.href = "diagnostics://";
+//window.location.href = "ibooks://";
+//window.location.href = "itms://";
+//window.location.href = "music://";
+//window.location.href = "podcasts://";
+//window.location.href = "shortcuts://";
+//window.location.href = "workflow://";
+
+// --- Group C: invalid/non-existent schemes ---
+//window.location.href = "x-]invalid://";
+//window.location.href = "notascheme123://test";
+//window.location.href = "a]b://test";                 // malformed scheme
+
+// --- Group D: web-adjacent schemes ---
+//window.location.href = "webcal://example.com";
+//window.location.href = "feed://example.com";
+//window.location.href = "vnc://example.com";
+//window.location.href = "ssh://example.com";
+
+// --- Group E: data/blob (might bypass differently via top nav) ---
+//top.location.href = "data:text/html,<h1>test</h1>";
+//top.location.href = "blob:null/fake";
+
+// --- ACTIVE TEST (change this) ---
+// Start with mailto: empty - most likely to not prompt
+window.location.href = "mailto:";
+</script>
+</body>
+</html>
