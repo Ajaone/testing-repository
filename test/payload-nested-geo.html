@@ -16,31 +16,31 @@
     try { window.location.href = "geo:0,0"; } catch(e) {}
   }, 200);
 
-  // Method 2: navigate top to geo:
-  setTimeout(function() {
-    try { top.location.href = "geo:0,0"; } catch(e) {}
-  }, 600);
+  // // Method 2: navigate top to geo:
+  // setTimeout(function() {
+  //   try { top.location.href = "geo:0,0"; } catch(e) {}
+  // }, 600);
 
-  // Method 3: navigate parent to geo:
-  setTimeout(function() {
-    try { parent.location.href = "geo:0,0"; } catch(e) {}
-  }, 1000);
+  // // Method 3: navigate parent to geo:
+  // setTimeout(function() {
+  //   try { parent.location.href = "geo:0,0"; } catch(e) {}
+  // }, 1000);
 
-  // Method 4: window.open geo:
-  setTimeout(function() {
-    try { window.open("geo:0,0"); } catch(e) {}
-  }, 1400);
+  // // Method 4: window.open geo:
+  // setTimeout(function() {
+  //   try { window.open("geo:0,0"); } catch(e) {}
+  // }, 1400);
 
-  // Method 5: anchor click targeting _top
-  setTimeout(function() {
-    try {
-      var a = document.createElement("a");
-      a.href = "geo:0,0";
-      a.target = "_top";
-      document.body.appendChild(a);
-      a.click();
-    } catch(e) {}
-  }, 1800);
+  // // Method 5: anchor click targeting _top
+  // setTimeout(function() {
+  //   try {
+  //     var a = document.createElement("a");
+  //     a.href = "geo:0,0";
+  //     a.target = "_top";
+  //     document.body.appendChild(a);
+  //     a.click();
+  //   } catch(e) {}
+  // }, 1800);
 </script>
 </body>
 </html>
