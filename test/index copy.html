@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phantom PoC Suite — frozzipies.cloud</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; background:#0d0d10; color:#e6e6e6; line-height:1.5; }
+    h1 { color:#a78bfa; }
+    h2 { color:#f0abfc; margin-top: 28px; }
+    .warn { background:#3f1d1d; border:2px solid #ef4444; padding:14px; border-radius:8px; color:#fecaca; margin: 16px 0; }
+    .warn b { color:#fca5a5; }
+    a { display:block; padding:14px 16px; background:#1f1f25; border:1px solid #2f2f37; border-radius:8px; color:#a5f3fc; text-decoration:none; margin: 8px 0; }
+    a:active { background:#27272f; }
+    .tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; margin-right:6px; vertical-align:middle; }
+    .tag.crit { background:#7f1d1d; color:#fecaca; }
+    .tag.high { background:#7c2d12; color:#fed7aa; }
+    .tag.med  { background:#78350f; color:#fde68a; }
+    .tag.dos  { background:#1e3a8a; color:#bfdbfe; }
+    code { background:#1f1f25; padding:2px 6px; border-radius:4px; color:#fbbf24; font-size:13px; }
+    .sub { color:#9ca3af; font-size:13px; margin-top:4px; display:block; }
+  </style>
+</head>
+<body>
+  <h1>Phantom Wallet — PoC Suite</h1>
+  <div class="warn">
+    <b>SAFETY RULES — READ FIRST</b><br>
+    1. Pakai akun Phantom <b>uji</b>, jangan pakai wallet utama yang berisi dana nyata.<br>
+    2. <b>SELALU TEKAN CANCEL / REJECT</b> di prompt Phantom — JANGAN approve apapun. Kita hanya observe UI prompt-nya.<br>
+    3. Semua transaction PoC dibangun di <b>devnet</b> (cluster=devnet) — tapi tetap reject untuk amannya.<br>
+    4. Capture screenshot tiap prompt yang menampilkan anomali → bukti report.<br>
+  </div>
+
+  <h2>A — Spoofing</h2>
+
+  <a href="./a1-name-spoofing.html">
+    <span class="tag crit">CRITICAL?</span> A1 — dApp name / title spoofing
+    <span class="sub">Apa yang Phantom tampilkan saat dApp name berisi RTL override, zero-width, homoglyph, sangat panjang.</span>
+  </a>
+
+  <a href="./a2-signmessage-spoofing.html">
+    <span class="tag crit">CRITICAL?</span> A2 — signMessage payload spoofing
+    <span class="sub">Bisakah message terlihat "berasal dari Phantom official" / domain lain di prompt sign?</span>
+  </a>
+
+  <a href="./a3-tx-simulation-spoofing.html">
+    <span class="tag crit">CRITICAL ($12.5k-$20k)</span> A3 — transaction simulation spoofing
+    <span class="sub">Token homoglyph (USDC/SOL), instruction misleading. Devnet only.</span>
+  </a>
+
+  <h2>B — DoS</h2>
+
+  <a href="./b1-deeplink-dos.html">
+    <span class="tag dos">MEDIUM ($1.5k-$5k)</span> B1 — malformed deeplink
+    <span class="sub">phantom:// dan universal links dengan payload aneh.</span>
+  </a>
+
+  <a href="./b3-oversized-payload.html">
+    <span class="tag dos">MEDIUM</span> B3 — oversized signMessage / signTransaction
+    <span class="sub">Payload 1MB / 10MB / 50MB.</span>
+  </a>
+
+  <h2>Cara pakai</h2>
+  <p style="font-size:13px;color:#9ca3af">
+    1. Buka URL ini di <b>Safari (iOS)</b> atau <b>Chrome (Android)</b> di handphone yang sudah ter-install Phantom.<br>
+    2. Klik salah satu test → ikuti instruksi di halaman.<br>
+    3. Saat prompt Phantom muncul → <b>screenshot</b> → <b>tekan CANCEL</b>.<br>
+    4. Catat anomali di chat agar kita lanjut investigate / lapor.
+  </p>
+</body>
+</html>

