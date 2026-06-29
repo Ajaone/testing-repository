@@ -1,5 +1,31 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>PoC</title>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PoC</title>
 <link rel="alternate" type="application/json+oembed"
       href="https://ajaone.github.io/testing-repository/test/oembed.json" title="PoC">
-</head><body>oembed poc</body></html>
+</head>
+<body>oembed poc
+<script>
+(function () {
+  function report(tag, obj){ try{ parent.postMessage('IFP::'+tag+'::'+JSON.stringify(obj), '*'); }catch(e){} }
+  var caps = { origin: location.origin };
+  try { caps.framed = (self !== top); } catch (e) { caps.framed = 'cross-origin'; }
+  try { var a = parent.document.title; caps.readParentDom = 'ALLOWED'; } catch (e) { caps.readParentDom = 'blocked'; }
+  try { var b = top.location.href; caps.readTopHref = 'ALLOWED'; } catch (e) { caps.readTopHref = 'blocked'; }
+  report('CAPS', caps);                       // sent on load
+  window.addEventListener('message', function (e) {
+    if (e.data === 'probe-popup') {
+      try { var w = window.open('https://example.com/clickup-popup-poc', '_blank'); report('POPUP', { opened: !!w }); }
+      catch (err) { report('POPUP', { err: err.name }); }
+    }
+    if (e.data === 'probe-topnav') {           // only fires when I signal it
+      try { top.location = 'https://example.com/clickup-topnav-poc'; report('TOPNAV', { attempted: true }); }
+      catch (err) { report('TOPNAV', { blocked: err.name }); }
+    }
+  });
+})();
+</script>
+</body>
+</html>
