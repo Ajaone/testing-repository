@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><title>fullscreen test</title>
+<style>body{font:16px system-ui;margin:0;background:#eef1f6;color:#111}
+.real{position:fixed;top:0;left:0;right:0;background:#b00020;color:#fff;padding:8px 12px;font-weight:700;z-index:9;font-size:13px}
+.wrap{max-width:560px;margin:70px auto;background:#fff;border-radius:12px;padding:26px;box-shadow:0 6px 30px rgba(0,0,0,.07)}
+button{padding:12px 18px;font-size:15px;cursor:pointer}code{background:#eef0f4;padding:1px 5px;border-radius:4px}
+#fs{display:none;position:fixed;inset:0;background:#fff;z-index:1000;flex-direction:column}#fs.on{display:flex}
+.mock{background:#e9ebf0;border-bottom:1px solid #d0d3da;padding:8px 12px;display:flex;align-items:center;gap:10px}
+.mock i{width:12px;height:12px;border-radius:50%;display:block}.r{background:#ff5f57}.y{background:#febc2e}.g{background:#28c840}
+.bar{flex:1;background:#fff;border:1px solid #cfd3dc;border-radius:8px;padding:7px 12px;font-size:13px}
+.body{flex:1;padding:40px}</style></head>
+<body>
+<div class="real">REAL ORIGIN: <span id="o"></span> — Esc untuk keluar</div>
+<div class="wrap">
+<h2>Test 3 — fullscreen fake chrome</h2>
+<p>Klik → masuk fullscreen + gambar toolbar palsu. Pertanyaan: ada indikator fullscreen yang jelas & persisten?</p>
+<button id="go">Enter fullscreen ⤢</button>
+</div>
+<div id="fs">
+<div class="mock"><i class="r"></i><i class="y"></i><i class="g"></i><div class="bar">🔒 https://example-trusted-site.tld/ — bar ini digambar halaman</div></div>
+<div class="body"><p style="font-size:22px;font-weight:700">Toolbar ini palsu — digambar halaman saat fullscreen.</p><p>Origin asli: <code id="o2"></code>. Kalau tak ada indikator fullscreen → bisa dipalsukan jadi window asli.</p></div>
+</div>
+<script>
+var org=location.origin;o.textContent=org;o2.textContent=org;
+go.onclick=async function(){try{await document.documentElement.requestFullscreen();}catch(e){}fs.classList.add("on");};
+document.addEventListener("fullscreenchange",function(){if(!document.fullscreenElement)fs.classList.remove("on");});
+</script></body></html>
