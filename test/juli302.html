@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><title>204 new window</title>
+<style>body{font:16px system-ui;margin:0;background:#eef1f6;color:#111}
+.real{position:fixed;top:0;left:0;right:0;background:#b00020;color:#fff;padding:8px 12px;font-weight:700;z-index:9;font-size:13px}
+.wrap{max-width:560px;margin:70px auto;background:#fff;border-radius:12px;padding:26px;box-shadow:0 6px 30px rgba(0,0,0,.07)}
+button{padding:12px 18px;font-size:15px;cursor:pointer}code{background:#eef0f4;padding:1px 5px;border-radius:4px}</style></head>
+<body>
+<div class="real">REAL ORIGIN opener: <span id="o"></span></div>
+<div class="wrap">
+<h2>Test 2 — 204 No Content, new window</h2>
+<p>Klik → buka window baru ke URL 204; opener tulis konten ke initial-doc. Lihat bar window BARU.</p>
+<button id="go">Open test window ↗</button>
+</div>
+<script>
+var U="https://www.google.com/generate_204",H="www.google.com",org=location.origin;
+o.textContent=org;
+var P='<!doctype html><meta charset=utf-8><title>'+H+'</title><div style="position:fixed;top:0;left:0;right:0;background:#b00020;color:#fff;padding:8px 12px;font:700 13px system-ui">Ditulis oleh '+org+', bukan '+H+'</div><div style="font:16px system-ui;max-width:520px;margin:70px auto;background:#fff;padding:26px;border-radius:12px"><p style="font-size:22px;font-weight:700">Kalau bar window ini <span style="color:#1a56db">'+H+'</span> → spoofed.</p><p>Origin asli: <code>'+org+'</code>.</p></div>';
+go.onclick=function(){var w=window.open(U,"t2");if(!w){alert("Izinkan pop-up lalu ulangi.");return;}var n=0;(function paint(){try{w.document.open();w.document.write(P);w.document.close();}catch(e){}if(++n<40)setTimeout(paint,100);})();};
+</script></body></html>
