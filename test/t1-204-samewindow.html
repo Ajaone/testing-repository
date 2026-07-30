@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><title>204 test</title>
+<style>body{font:16px system-ui;margin:0;background:#f2f4f8;color:#111}
+.real{position:fixed;top:0;left:0;right:0;background:#b00020;color:#fff;padding:8px 12px;font-weight:700;z-index:9;font-size:13px}
+.wrap{max-width:560px;margin:70px auto;background:#fff;border-radius:12px;padding:26px;box-shadow:0 6px 30px rgba(0,0,0,.07)}
+button{padding:12px 18px;font-size:15px;cursor:pointer}code{background:#eef0f4;padding:1px 5px;border-radius:4px}</style></head>
+<body>
+<div class="real">REAL ORIGIN: <span id="o"></span></div>
+<div class="wrap" id="card">
+<h2>Test 1 — 204 No Content, same tab</h2>
+<p>Klik → repaint lalu navigasi ke URL 204 (tak commit dokumen). <b>Bug:</b> bar tetap <code id="th"></code>.</p>
+<button id="go">Run test →</button>
+</div>
+<script>
+var U="https://www.google.com/generate_204",H="www.google.com",org=location.origin;
+o.textContent=org;th.textContent=H;
+go.onclick=function(){document.title=H;
+card.innerHTML='<p style="font-size:22px;font-weight:700">Kalau bar sekarang <span style="color:#1a56db">'+H+'</span> → spoofed.</p><p>Sebenarnya masih di <code>'+org+'</code>.</p>';
+location.href=U;};
+</script></body></html>
